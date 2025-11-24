@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from urllib.parse import urlencode, quote_plus
 
 from google.oauth2.service_account import Credentials
 import gspread
@@ -24,7 +23,7 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
-SHEET_NAME = "TandaDB"  # <-- Asegúrate que el nombre coincide
+SHEET_NAME = "TandaDB"
 spreadsheet = client.open(SHEET_NAME)
 
 sheet_participantes = spreadsheet.worksheet("participantes")
@@ -59,10 +58,8 @@ def ensure_columns(df, columns):
 def load_participants():
     df = get_as_dataframe(sheet_participantes, evaluate_formulas=True, header=0)
     df = df.dropna(how="all")
-
     if df.empty:
         return pd.DataFrame(columns=COLS_PARTICIPANTES)
-
     df = ensure_columns(df.fillna(""), COLS_PARTICIPANTES)
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
     return df
@@ -71,69 +68,39 @@ def load_participants():
 def load_calendar():
     df = get_as_dataframe(sheet_calendario, evaluate_formulas=True, header=0)
     df = df.dropna(how="all")
-
     if df.empty:
         return pd.DataFrame(columns=COLS_CALENDARIO)
-
     df = ensure_columns(df.fillna(""), COLS_CALENDARIO)
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
-    df["anio"] = pd.to_numeric(df["anio"], errors="coerce").fillna(
-        datetime.today().year
-    ).astype(int)
-
+    df["anio"] = pd.to_numeric(df["anio"], errors="coerce").fillna(datetime.today().year).astype(int)
     return df
 
 
 # ============================================================
-# LOGIN CON CONTRASEÑA (Opción A)
+# LOGIN
 # ============================================================
 
-PASSWORD = "12345"  # <-- cámbiala a lo que quieras
+PASSWORD = "12345"
 
 def check_password():
-    """Pantalla de login simple."""
-
-    with st.form("login_form"):
-        st.subheader("🔐 Acceso al Dashboard de la Tanda")
-        st.write("Ingresa la contraseña para ver la información.")
+    with st.form("login"):
+        st.subheader("🔐 Acceso al Dashboard Financiero")
         pwd = st.text_input("Contraseña", type="password")
-        submit = st.form_submit_button("Entrar")
+        btn = st.form_submit_button("Entrar")
 
-    if submit:
+    if btn:
         if pwd == PASSWORD:
-            st.session_state["authenticated"] = True
-            st.success("Acceso concedido 🎉")
+            st.session_state.auth = True
         else:
-            st.error("Contraseña incorrecta ❌")
+            st.error("Contraseña incorrecta")
 
-    return st.session_state.get("authenticated", False)
-
-
-# ============================================================
-# CONFIG STREAMLIT
-# ============================================================
-
-st.set_page_config(page_title="Tanda Dashboard", page_icon="📱", layout="wide")
+    return st.session_state.get("auth", False)
 
 
-# Si no está autenticado → mostrar login
+st.set_page_config(page_title="Tanda Dashboard", page_icon="💸", layout="wide")
+
 if not check_password():
     st.stop()
-
-
-# ============================================================
-# PORTADA / ENCABEZADO
-# ============================================================
-
-st.markdown("""
-<div style='text-align:center;margin-top:10px;'>
-    <h1 style='font-size:48px;margin-bottom:0;'>📱 Tanda entre Amigos</h1>
-    <p style='font-size:20px;margin-top:5px;'>
-        Dashboard de consulta • Solo lectura<br>
-        Consulta turnos, pagos y calendario desde tu celular
-    </p>
-</div>
-""", unsafe_allow_html=True)
 
 
 # ============================================================
@@ -143,130 +110,149 @@ st.markdown("""
 participants_df = load_participants()
 calendar_df = load_calendar()
 
-
-# ============================================================
-# MENÚ PRINCIPAL (BOTONES GRANDES TIPO APP)
-# ============================================================
-
-st.markdown("## 📌 Selecciona lo que quieres ver")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("📅 Calendario", use_container_width=True):
-        st.session_state["view"] = "calendario"
-
-with col2:
-    if st.button("📊 Historial", use_container_width=True):
-        st.session_state["view"] = "historial"
-
-with col3:
-    if st.button("👥 Participantes", use_container_width=True):
-        st.session_state["view"] = "participantes"
-
-
-view = st.session_state.get("view", "calendario")
+anio_actual = datetime.today().year
+df_year = calendar_df[calendar_df["anio"] == anio_actual].copy()
 
 
 # ============================================================
-# FUNCIÓN PARA GENERAR LINK DE WHATSAPP
+# SIDEBAR
 # ============================================================
 
-MENSAJE_WHATSAPP = (
-    "¡Hola! Te recordamos que mañana es tu contribución de $50 USD para la tanda. ¡Gracias!"
+st.sidebar.title("📊 Dashboard Financiero")
+st.sidebar.markdown("Visualización completa de la Tanda")
+
+menu = st.sidebar.radio(
+    "Selecciona sección",
+    ["🏠 Inicio", "📅 Calendario", "👥 Participantes", "📊 Historial"],
 )
 
-def whatsapp_link(telefono):
-    if not telefono:
-        return None
-    mensaje = quote_plus(MENSAJE_WHATSAPP)
-    return f"https://wa.me/{telefono}?text={mensaje}"
+st.sidebar.markdown("---")
+st.sidebar.caption("Tanda entre Amigos — Vista Solo Lectura")
 
 
 # ============================================================
-# VISTA: CALENDARIO
+# SECCIÓN: INICIO FINANCIERO
 # ============================================================
 
-if view == "calendario":
-    st.header("📅 Calendario de Pagos")
+if menu == "🏠 Inicio":
 
-    if calendar_df.empty:
-        st.info("No hay datos todavía.")
-    else:
-        anios = sorted(calendar_df["anio"].unique())
-        anio_sel = st.selectbox("Selecciona el año", anios)
+    st.markdown("<h1 style='text-align:center;'>💸 Dashboard Financiero</h1>", unsafe_allow_html=True)
 
-        df_year = calendar_df[calendar_df["anio"] == anio_sel].copy()
-        df_year["fecha_pago"] = pd.to_datetime(
-            df_year["fecha_pago"], errors="coerce"
-        ).dt.strftime("%Y-%m-%d")
+    if not df_year.empty:
 
-        st.write("### Turnos del Año")
-        st.dataframe(
-            df_year[
-                ["nombre_participante", "fecha_pago", "estatus", "fecha_pago_real", "total_a_recibir", "notas"]
-            ],
-            use_container_width=True,
-        )
+        # TOTAL BOLSA
+        total_bolsa = df_year["total_a_recibir"].sum()
 
-        st.write("### Enviar recordatorio por WhatsApp")
-        for _, row in df_year.iterrows():
-            telefono = participants_df.loc[
-                participants_df["id"] == row["id_participante"], "telefono"
-            ].values[0]
+        # SIGUIENTE EN RECIBIR
+        df_year_sorted = df_year.sort_values("fecha_pago")
+        hoy = datetime.today().date()
 
-            wa = whatsapp_link(telefono)
+        df_year_sorted["fecha_pago_date"] = pd.to_datetime(df_year_sorted["fecha_pago"]).dt.date
+        next_row = df_year_sorted[df_year_sorted["fecha_pago_date"] >= hoy].head(1)
 
-            if wa:
-                st.markdown(
-                    f"**{row['nombre_participante']}** — "
-                    f"[📲 Enviar mensaje]({wa})",
-                    unsafe_allow_html=True
-                )
+        # Widget 1: Bolsa
+        col1, col2, col3 = st.columns(3)
 
+        with col1:
+            st.markdown("""
+            <div style="background-color:#e8f5e9;padding:25px;border-radius:15px;text-align:center;">
+                <h2>💰 Bolsa del Año</h2>
+                <h1 style="color:#2e7d32;">${:,.2f}</h1>
+            </div>
+            """.format(total_bolsa), unsafe_allow_html=True)
 
-# ============================================================
-# VISTA: HISTORIAL
-# ============================================================
+        # Widget 2: Participantes
+        with col2:
+            st.markdown(f"""
+            <div style="background-color:#e3f2fd;padding:25px;border-radius:15px;text-align:center;">
+                <h2>👥 Participantes</h2>
+                <h1 style="color:#0277bd;">{len(participants_df)}</h1>
+            </div>
+            """, unsafe_allow_html=True)
 
-elif view == "historial":
-    st.header("📊 Historial General")
-
-    if calendar_df.empty:
-        st.info("Aún no hay historial.")
-    else:
-        anios = sorted(calendar_df["anio"].unique())
-        anio_sel = st.selectbox("Año", anios)
-
-        df_year = calendar_df[calendar_df["anio"] == anio_sel].copy()
-
-        completados = (df_year["estatus"] == "Completado").sum()
+        # Widget 3: Turnos pendientes
         pendientes = (df_year["estatus"] == "Pendiente").sum()
-        total_dinero = df_year["total_a_recibir"].sum()
+        with col3:
+            st.markdown(f"""
+            <div style="background-color:#fff9c4;padding:25px;border-radius:15px;text-align:center;">
+                <h2>⏳ Pendientes</h2>
+                <h1 style="color:#f57f17;">{pendientes}</h1>
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.subheader("Resumen del Año")
-        st.metric("Turnos Totales", len(df_year))
-        st.metric("Pagados", completados)
-        st.metric("Pendientes", pendientes)
-        st.metric("Total Acumulado", f"${total_dinero:,.2f} USD")
+        st.markdown("---")
 
-        st.write("### Tabla Completa")
+        # Tarjeta: Próximo en recibir
+        if not next_row.empty:
+            nr = next_row.iloc[0]
+            st.markdown(f"""
+            <div style="background-color:#ede7f6;padding:30px;border-radius:15px;">
+                <h2>🎉 Próximo en recibir su tanda</h2>
+                <h1 style="font-size:36px;">{nr['nombre_participante']}</h1>
+                <p><b>Fecha:</b> {nr['fecha_pago']}</p>
+                <p><b>Total a recibir:</b> ${nr['total_a_recibir']:,.2f}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    else:
+        st.info("Aún no hay calendario generado para este año.")
+
+
+# ============================================================
+# SECCIÓN: CALENDARIO
+# ============================================================
+
+elif menu == "📅 Calendario":
+
+    st.header("📅 Calendario del Año")
+
+    if df_year.empty:
+        st.info("No hay calendario para este año.")
+    else:
         st.dataframe(
             df_year[
-                ["nombre_participante", "fecha_pago", "fecha_pago_real", "estatus", "total_a_recibir", "notas"]
-            ],
+                ["nombre_participante", "fecha_pago", "estatus", "total_a_recibir", "notas"]
+            ].sort_values("fecha_pago"),
             use_container_width=True,
         )
 
 
 # ============================================================
-# VISTA: PARTICIPANTES
+# SECCIÓN: PARTICIPANTES
 # ============================================================
 
-elif view == "participantes":
+elif menu == "👥 Participantes":
+
     st.header("👥 Lista de Participantes")
 
-    st.dataframe(
-        participants_df[["nombre", "fecha_cumple", "telefono", "email", "notas"]],
-        use_container_width=True,
-    )
+    for _, row in participants_df.iterrows():
+        st.markdown(f"""
+        <div style="background-color:#f5f5f5;padding:15px;border-radius:10px;margin-bottom:10px;">
+            <h3>👤 {row['nombre']}</h3>
+            <p><b>🎂 Cumpleaños:</b> {row['fecha_cumple']}</p>
+            <p><b>📞 Teléfono:</b> {row['telefono']}</p>
+            <p><b>📧 Email:</b> {row['email']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ============================================================
+# SECCIÓN: HISTORIAL
+# ============================================================
+
+elif menu == "📊 Historial":
+
+    st.header("📊 Historial Financiero")
+
+    if df_year.empty:
+        st.info("No hay historial este año.")
+    else:
+        completados = (df_year["estatus"] == "Completado").sum()
+        st.metric("Pagos completados", completados)
+
+        st.dataframe(
+            df_year[
+                ["nombre_participante", "fecha_pago", "fecha_pago_real", "estatus", "total_a_recibir"]
+            ],
+            use_container_width=True,
+        )
