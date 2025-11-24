@@ -12,24 +12,22 @@ from gspread_dataframe import get_as_dataframe
 st.set_page_config(page_title="Tanda Dashboard", page_icon="💸", layout="wide")
 
 # ============================================================
-# OCULTAR BARRA SUPERIOR, MENÚ Y FOOTER (modo dashboard)
+# OCULTAR MENÚ Y FOOTER, PERO DEJAR HEADER (HAMBURGUER) VISIBLE
 # ============================================================
 hide_streamlit_style = """
     <style>
-        /* Oculta la barra superior (Share, Restart, etc.) */
-        header {visibility: hidden !important;}
-
-        /* Oculta toolbar / tres puntitos */
-        .stAppToolbar {display: none !important;}
-
-        /* Oculta el menú principal de Streamlit */
+        /* Oculta el menú principal de Streamlit (arriba Izq en desktop) */
         #MainMenu {visibility: hidden !important;}
 
         /* Oculta el pie de página "Made with Streamlit" */
         footer {visibility: hidden !important;}
+
+        /* Oculta la toolbar de Streamlit (iconos de arriba a la derecha, pero deja el header) */
+        .stAppToolbar {display: none !important;}
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 
 # ============================================================
 # CONFIG: GOOGLE SHEETS (SOLO LECTURA)
