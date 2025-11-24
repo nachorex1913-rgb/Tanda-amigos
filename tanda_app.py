@@ -51,7 +51,6 @@ COLS_CALENDARIO = [
 # ============================================================
 
 def ensure_columns(df, columns):
-    """Asegura que el DataFrame tenga todas las columnas."""
     for c in columns:
         if c not in df.columns:
             df[c] = ""
@@ -59,7 +58,6 @@ def ensure_columns(df, columns):
 
 
 def load_participants():
-    """Carga participantes desde Google Sheets."""
     df = get_as_dataframe(sheet_participantes, evaluate_formulas=True, header=0)
     df = df.dropna(how="all")
 
@@ -68,23 +66,16 @@ def load_participants():
 
     df = ensure_columns(df.fillna(""), COLS_PARTICIPANTES)
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
-
     return df
 
 
 def save_participants(df):
     df_to_save = ensure_columns(df.copy(), COLS_PARTICIPANTES).fillna("")
     sheet_participantes.clear()
-    set_with_dataframe(
-        sheet_participantes,
-        df_to_save,
-        include_index=False,
-        include_column_header=True,
-    )
+    set_with_dataframe(sheet_participantes, df_to_save, include_index=False, include_column_header=True)
 
 
 def load_calendar():
-    """Carga calendario desde Google Sheets."""
     df = get_as_dataframe(sheet_calendario, evaluate_formulas=True, header=0)
     df = df.dropna(how="all")
 
@@ -93,26 +84,17 @@ def load_calendar():
 
     df = ensure_columns(df.fillna(""), COLS_CALENDARIO)
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
-    df["anio"] = pd.to_numeric(df["anio"], errors="coerce").fillna(
-        datetime.today().year
-    ).astype(int)
-
+    df["anio"] = pd.to_numeric(df["anio"], errors="coerce").fillna(datetime.today().year).astype(int)
     return df
 
 
 def save_calendar(df):
     df_to_save = ensure_columns(df.copy(), COLS_CALENDARIO).fillna("")
     sheet_calendario.clear()
-    set_with_dataframe(
-        sheet_calendario,
-        df_to_save,
-        include_index=False,
-        include_column_header=True,
-    )
+    set_with_dataframe(sheet_calendario, df_to_save, include_index=False, include_column_header=True)
 
 
 def generate_new_id(df):
-    """Genera un nuevo ID incremental."""
     if df.empty or "id" not in df.columns:
         return 1
     max_id = pd.to_numeric(df["id"], errors="coerce").fillna(0).max()
@@ -120,7 +102,6 @@ def generate_new_id(df):
 
 
 def safe_parse_date(text):
-    """Interpreta una fecha flexible."""
     try:
         return parse_date(text, dayfirst=True)
     except:
@@ -135,18 +116,18 @@ st.set_page_config(page_title="Tanda Admin", page_icon="🎉", layout="wide")
 st.title("🎉 Tanda entre Amigos – Panel Administrador")
 st.caption("Gestiona participantes, calendario y pagos reales.")
 
+# ------------------------------------------------------------
+# Inicializar estados de formulario
+# ------------------------------------------------------------
 
-# Inicializar Estados de Formulario (para que se limpien después de guardar)
-if "nombre_input" not in st.session_state:
-    st.session_state.nombre_input = ""
-if "fecha_input" not in st.session_state:
-    st.session_state.fecha_input = ""
-if "telefono_input" not in st.session_state:
-    st.session_state.telefono_input = ""
-if "email_input" not in st.session_state:
-    st.session_state.email_input = ""
-if "notas_input" not in st.session_state:
-    st.session_state.notas_input = ""
+if "reset_form" not in st.session_state:
+    st.session_state.reset_form = False
+
+# Campos del formulario
+for field in ["nombre_input", "fecha_input", "telefono_input", "email_input", "notas_input"]:
+    if field not in st.session_state:
+        st.session_state[field] = ""
+
 
 # Cargar datos
 participants_df = load_participants()
@@ -171,21 +152,43 @@ with tab_part:
             pid = st.selectbox(
                 "Selecciona participante",
                 participants_df["id"].tolist(),
-                format_func=lambda x: participants_df.loc[
-                    participants_df["id"] == x, "nombre"
-                ].values[0]
+                format_func=lambda x: participants_df.loc[participants_df["id"] == x, "nombre"].values[0]
             )
             row = participants_df[participants_df["id"] == pid].iloc[0]
         else:
             pid = None
             row = {c: "" for c in COLS_PARTICIPANTES}
 
-        # FORMULARIO con Session State
-        nombre = st.text_input("Nombre", value=row["nombre"], key="nombre_input")
-        fecha_cumple = st.text_input("Fecha de cumpleaños (ej: 15/04/1990)", value=row["fecha_cumple"], key="fecha_input")
-        telefono = st.text_input("Teléfono", value=row["telefono"], key="telefono_input")
-        email = st.text_input("Email", value=row["email"], key="email_input")
-        notas_p = st.text_area("Notas", value=row["notas"], key="notas_input")
+        # FORMULARIO con reset automático
+        nombre = st.text_input(
+            "Nombre",
+            value=("" if st.session_state.reset_form else row["nombre"]),
+            key="nombre_input"
+        )
+
+        fecha_cumple = st.text_input(
+            "Fecha de cumpleaños (ej: 15/04/1990)",
+            value=("" if st.session_state.reset_form else row["fecha_cumple"]),
+            key="fecha_input"
+        )
+
+        telefono = st.text_input(
+            "Teléfono",
+            value=("" if st.session_state.reset_form else row["telefono"]),
+            key="telefono_input"
+        )
+
+        email = st.text_input(
+            "Email",
+            value=("" if st.session_state.reset_form else row["email"]),
+            key="email_input"
+        )
+
+        notas_p = st.text_area(
+            "Notas",
+            value=("" if st.session_state.reset_form else row["notas"]),
+            key="notas_input"
+        )
 
         if st.button("Guardar Participante"):
             if not nombre.strip():
@@ -220,25 +223,16 @@ with tab_part:
                 participants_df.loc[participants_df["id"] == pid, "notas"] = notas_p.strip()
 
             save_participants(participants_df)
-            participants_df = load_participants()
 
-            # 🔥 RESETEAR FORMULARIO
-            st.session_state.nombre_input = ""
-            st.session_state.fecha_input = ""
-            st.session_state.telefono_input = ""
-            st.session_state.email_input = ""
-            st.session_state.notas_input = ""
+            # 🔥 ACTIVAR LIMPIEZA DE FORMULARIO
+            st.session_state.reset_form = True
 
             st.success("Participante guardado correctamente.")
 
-        if mode == "Editar" and pid is not None:
-            if st.button("Eliminar participante"):
-                participants_df = participants_df[participants_df["id"] != pid]
-                save_participants(participants_df)
-                participants_df = load_participants()
-                st.warning("Participante eliminado.")
+        # ⚠️ Importante: Apagar reset después del render
+        st.session_state.reset_form = False
 
-
+    # Mostrar lista
     with col_list:
         st.subheader("Lista de participantes")
         st.dataframe(participants_df, use_container_width=True)
@@ -301,31 +295,19 @@ with tab_cal:
 
                 calendar_df = pd.concat([calendar_df, pd.DataFrame(new_rows)], ignore_index=True)
                 save_calendar(calendar_df)
-                calendar_df = load_calendar()
                 st.success("Calendario generado.")
 
         with colB:
+            calendar_df = load_calendar()
             year_df = calendar_df[calendar_df["anio"] == anio].copy()
 
             if year_df.empty:
                 st.info("No hay calendario para este año.")
             else:
-                year_df["fecha_pago"] = pd.to_datetime(
-                    year_df["fecha_pago"], errors="coerce"
-                ).dt.strftime("%Y-%m-%d")
 
                 edited = st.data_editor(
                     year_df[
-                        [
-                            "id",
-                            "nombre_participante",
-                            "fecha_pago",
-                            "monto_por_persona",
-                            "total_a_recibir",
-                            "estatus",
-                            "fecha_pago_real",
-                            "notas",
-                        ]
+                        ["id", "nombre_participante", "fecha_pago", "monto_por_persona", "total_a_recibir", "estatus", "fecha_pago_real", "notas"]
                     ],
                     num_rows="fixed",
                     use_container_width=True,
@@ -335,8 +317,6 @@ with tab_cal:
                     for _, r in edited.iterrows():
                         rid = int(r["id"])
                         mask = calendar_df["id"] == rid
-                        if not mask.any():
-                            continue
 
                         calendar_df.loc[mask, "estatus"] = r["estatus"]
                         calendar_df.loc[mask, "notas"] = r["notas"]
@@ -345,12 +325,10 @@ with tab_cal:
 
                         if fecha_real:
                             calendar_df.loc[mask, "fecha_pago_real"] = fecha_real
-                        else:
-                            if r["estatus"] == "Completado":
-                                calendar_df.loc[mask, "fecha_pago_real"] = datetime.today().strftime("%Y-%m-%d")
+                        elif r["estatus"] == "Completado":
+                            calendar_df.loc[mask, "fecha_pago_real"] = datetime.today().strftime("%Y-%m-%d")
 
                     save_calendar(calendar_df)
-                    calendar_df = load_calendar()
                     st.success("Cambios guardados correctamente.")
 
 
@@ -362,7 +340,7 @@ with tab_hist:
     st.header("Historial General")
 
     if calendar_df.empty:
-        st.info("Aún no hay calendario registrado.")
+        st.info("Aún no hay historial.")
     else:
         anios = sorted(calendar_df["anio"].unique())
         anio_sel = st.selectbox("Selecciona año", anios)
@@ -371,13 +349,13 @@ with tab_hist:
 
         completados = (df_year["estatus"] == "Completado").sum()
         pendientes = (df_year["estatus"] == "Pendiente").sum()
-        dinero_total = df_year["total_a_recibir"].sum()
+        total_dinero = df_year["total_a_recibir"].sum()
 
-        st.subheader("Resumen")
-        st.write(f"Turnos: **{len(df_year)}**")
+        st.subheader("Resumen del Año")
+        st.write(f"Turnos totales: **{len(df_year)}**")
         st.write(f"Completados: **{completados}**")
         st.write(f"Pendientes: **{pendientes}**")
-        st.write(f"Dinero total: **${dinero_total:,.2f} USD**")
+        st.write(f"Dinero acumulado: **${total_dinero:,.2f} USD**")
 
         st.subheader("Por Participante")
         resumen = (
@@ -390,13 +368,10 @@ with tab_hist:
             )
             .reset_index()
         )
+
         st.dataframe(resumen, use_container_width=True)
 
-        st.subheader("Detalle")
-        df_year["fecha_pago"] = pd.to_datetime(
-            df_year["fecha_pago"], errors="coerce"
-        ).dt.strftime("%Y-%m-%d")
-
+        st.subheader("Detalle Completo")
         st.dataframe(
             df_year[
                 ["nombre_participante", "fecha_pago", "fecha_pago_real", "estatus", "total_a_recibir", "notas"]
