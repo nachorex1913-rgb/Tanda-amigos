@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from dateutil.parser import parse as parse_date
+from urllib.parse import urlencode, quote_plus
 
 from google.oauth2.service_account import Credentials
 import gspread
@@ -9,7 +9,7 @@ from gspread_dataframe import get_as_dataframe
 
 
 # ============================================================
-# CONFIG: GOOGLE SHEETS
+# CONFIG: GOOGLE SHEETS (SOLO LECTURA)
 # ============================================================
 
 SCOPES = [
@@ -24,7 +24,7 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
-SHEET_NAME = "TandaDB"   # <-- Nombre del documento en Google Sheets
+SHEET_NAME = "TandaDB"  # <-- Asegúrate que el nombre coincide
 spreadsheet = client.open(SHEET_NAME)
 
 sheet_participantes = spreadsheet.worksheet("participantes")
@@ -85,126 +85,188 @@ def load_calendar():
 
 
 # ============================================================
-# DASHBOARD LECTURA
+# LOGIN CON CONTRASEÑA (Opción A)
 # ============================================================
 
-st.set_page_config(page_title="Tanda Dashboard", page_icon="📊", layout="wide")
-st.title("📊 Dashboard de la Tanda entre Amigos")
-st.caption("Esta es una vista pública (solo lectura).")
+PASSWORD = "12345"  # <-- cámbiala a lo que quieras
+
+def check_password():
+    """Pantalla de login simple."""
+
+    with st.form("login_form"):
+        st.subheader("🔐 Acceso al Dashboard de la Tanda")
+        st.write("Ingresa la contraseña para ver la información.")
+        pwd = st.text_input("Contraseña", type="password")
+        submit = st.form_submit_button("Entrar")
+
+    if submit:
+        if pwd == PASSWORD:
+            st.session_state["authenticated"] = True
+            st.success("Acceso concedido 🎉")
+        else:
+            st.error("Contraseña incorrecta ❌")
+
+    return st.session_state.get("authenticated", False)
 
 
-# Cargar datos
+# ============================================================
+# CONFIG STREAMLIT
+# ============================================================
+
+st.set_page_config(page_title="Tanda Dashboard", page_icon="📱", layout="wide")
+
+
+# Si no está autenticado → mostrar login
+if not check_password():
+    st.stop()
+
+
+# ============================================================
+# PORTADA / ENCABEZADO
+# ============================================================
+
+st.markdown("""
+<div style='text-align:center;margin-top:10px;'>
+    <h1 style='font-size:48px;margin-bottom:0;'>📱 Tanda entre Amigos</h1>
+    <p style='font-size:20px;margin-top:5px;'>
+        Dashboard de consulta • Solo lectura<br>
+        Consulta turnos, pagos y calendario desde tu celular
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ============================================================
+# CARGA DE DATOS
+# ============================================================
+
 participants_df = load_participants()
 calendar_df = load_calendar()
 
 
-tab_cal, tab_hist, tab_part = st.tabs(["Calendario", "Historial", "Participantes"])
+# ============================================================
+# MENÚ PRINCIPAL (BOTONES GRANDES TIPO APP)
+# ============================================================
+
+st.markdown("## 📌 Selecciona lo que quieres ver")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    if st.button("📅 Calendario", use_container_width=True):
+        st.session_state["view"] = "calendario"
+
+with col2:
+    if st.button("📊 Historial", use_container_width=True):
+        st.session_state["view"] = "historial"
+
+with col3:
+    if st.button("👥 Participantes", use_container_width=True):
+        st.session_state["view"] = "participantes"
+
+
+view = st.session_state.get("view", "calendario")
 
 
 # ============================================================
-# TAB: CALENDARIO (SOLO LECTURA)
+# FUNCIÓN PARA GENERAR LINK DE WHATSAPP
 # ============================================================
 
-with tab_cal:
-    st.header("Calendario de Pagos")
+MENSAJE_WHATSAPP = (
+    "¡Hola! Te recordamos que mañana es tu contribución de $50 USD para la tanda. ¡Gracias!"
+)
+
+def whatsapp_link(telefono):
+    if not telefono:
+        return None
+    mensaje = quote_plus(MENSAJE_WHATSAPP)
+    return f"https://wa.me/{telefono}?text={mensaje}"
+
+
+# ============================================================
+# VISTA: CALENDARIO
+# ============================================================
+
+if view == "calendario":
+    st.header("📅 Calendario de Pagos")
 
     if calendar_df.empty:
-        st.info("No hay datos de calendario todavía.")
+        st.info("No hay datos todavía.")
     else:
         anios = sorted(calendar_df["anio"].unique())
         anio_sel = st.selectbox("Selecciona el año", anios)
 
         df_year = calendar_df[calendar_df["anio"] == anio_sel].copy()
-
         df_year["fecha_pago"] = pd.to_datetime(
             df_year["fecha_pago"], errors="coerce"
         ).dt.strftime("%Y-%m-%d")
 
-        st.write("### Calendario del Año")
+        st.write("### Turnos del Año")
         st.dataframe(
             df_year[
-                [
-                    "nombre_participante",
-                    "fecha_pago",
-                    "monto_por_persona",
-                    "total_a_recibir",
-                    "estatus",
-                    "fecha_pago_real",
-                    "notas",
-                ]
-            ].sort_values("fecha_pago"),
+                ["nombre_participante", "fecha_pago", "estatus", "fecha_pago_real", "total_a_recibir", "notas"]
+            ],
             use_container_width=True,
         )
 
+        st.write("### Enviar recordatorio por WhatsApp")
+        for _, row in df_year.iterrows():
+            telefono = participants_df.loc[
+                participants_df["id"] == row["id_participante"], "telefono"
+            ].values[0]
+
+            wa = whatsapp_link(telefono)
+
+            if wa:
+                st.markdown(
+                    f"**{row['nombre_participante']}** — "
+                    f"[📲 Enviar mensaje]({wa})",
+                    unsafe_allow_html=True
+                )
+
 
 # ============================================================
-# TAB: HISTORIAL GENERAL
+# VISTA: HISTORIAL
 # ============================================================
 
-with tab_hist:
-    st.header("Historial General")
+elif view == "historial":
+    st.header("📊 Historial General")
 
     if calendar_df.empty:
-        st.info("Aún no hay historial registrado.")
+        st.info("Aún no hay historial.")
     else:
         anios = sorted(calendar_df["anio"].unique())
-        anio_sel = st.selectbox("Selecciona un año", anios)
+        anio_sel = st.selectbox("Año", anios)
 
         df_year = calendar_df[calendar_df["anio"] == anio_sel].copy()
 
         completados = (df_year["estatus"] == "Completado").sum()
         pendientes = (df_year["estatus"] == "Pendiente").sum()
-        dinero_total = df_year["total_a_recibir"].sum()
+        total_dinero = df_year["total_a_recibir"].sum()
 
         st.subheader("Resumen del Año")
-        st.write(f"Turnos en total: **{len(df_year)}**")
-        st.write(f"Completados: **{completados}**")
-        st.write(f"Pendientes: **{pendientes}**")
-        st.write(f"Total dinero acumulado: **${dinero_total:,.2f} USD**")
+        st.metric("Turnos Totales", len(df_year))
+        st.metric("Pagados", completados)
+        st.metric("Pendientes", pendientes)
+        st.metric("Total Acumulado", f"${total_dinero:,.2f} USD")
 
-        st.subheader("Por Participante")
-        resumen = (
-            df_year.groupby("nombre_participante")
-            .agg(
-                turnos=("id", "count"),
-                completados=("estatus", lambda x: (x == "Completado").sum()),
-                pendientes=("estatus", lambda x: (x == "Pendiente").sum()),
-                total_recibir=("total_a_recibir", "sum"),
-            )
-            .reset_index()
-        )
-
-        st.dataframe(resumen, use_container_width=True)
-
-        st.subheader("Detalle Completo")
+        st.write("### Tabla Completa")
         st.dataframe(
             df_year[
-                [
-                    "nombre_participante",
-                    "fecha_pago",
-                    "fecha_pago_real",
-                    "estatus",
-                    "total_a_recibir",
-                    "notas",
-                ]
-            ].sort_values("fecha_pago"),
-            use_container_width=True,
-        )
-
-
-# ============================================================
-# TAB: PARTICIPANTES
-# ============================================================
-
-with tab_part:
-    st.header("Lista de Participantes")
-
-    if participants_df.empty:
-        st.info("Todavía no hay participantes registrados.")
-    else:
-        st.dataframe(
-            participants_df[
-                ["nombre", "fecha_cumple", "telefono", "email", "notas"]
+                ["nombre_participante", "fecha_pago", "fecha_pago_real", "estatus", "total_a_recibir", "notas"]
             ],
             use_container_width=True,
         )
+
+
+# ============================================================
+# VISTA: PARTICIPANTES
+# ============================================================
+
+elif view == "participantes":
+    st.header("👥 Lista de Participantes")
+
+    st.dataframe(
+        participants_df[["nombre", "fecha_cumple", "telefono", "email", "notas"]],
+        use_container_width=True,
+    )
