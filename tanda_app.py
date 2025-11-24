@@ -1,3 +1,29 @@
+import gspread
+from google.oauth2.service_account import Credentials
+from gspread_dataframe import get_as_dataframe, set_with_dataframe
+
+# Alcances necesarios para Sheets + Drive
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+# Cargar credenciales desde secrets de Streamlit
+creds = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=SCOPES
+)
+
+# Conectar a Google Sheets
+client = gspread.authorize(creds)
+
+# Abrir archivo por nombre
+SHEET_NAME = "TandaDB"  # <-- pon el nombre exacto de tu Sheet
+spreadsheet = client.open(SHEET_NAME)
+
+# Hojas
+sheet_participantes = spreadsheet.worksheet("participantes")
+sheet_calendario = spreadsheet.worksheet("calendario")
 import os
 from datetime import datetime
 
