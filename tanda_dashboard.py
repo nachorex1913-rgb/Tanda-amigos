@@ -173,6 +173,9 @@ else:
     df_year = pd.DataFrame(columns=COLS_CALENDARIO)
     df_year["fecha_pago_dt"] = pd.NaT
 
+# Asegurar que siempre sea datetime antes de usar .dt
+df_year["fecha_pago_dt"] = pd.to_datetime(df_year["fecha_pago_dt"], errors="coerce")
+
 # ============================================================
 # TARJETAS RESUMEN
 # ============================================================
@@ -246,20 +249,28 @@ st.subheader("🎉 Próximo en recibir su tanda")
 
 if not df_year.empty:
     hoy = datetime.today().date()
-    futuros = df_year[df_year["fecha_pago_dt"].dt.date >= hoy].sort_values(
-        "fecha_pago_dt"
-    )
+
+    # Reasegurar fechas válidas
+    fechas_validas = pd.to_datetime(df_year["fecha_pago_dt"], errors="coerce")
+    mask_future = fechas_validas.notna() & (fechas_validas.dt.date >= hoy)
+
+    futuros = df_year[mask_future].copy()
+    futuros["fecha_pago_dt"] = fechas_validas[mask_future]
+
+    df_sorted_all = df_year.copy()
+    df_sorted_all["fecha_pago_dt"] = fechas_validas
 
     if not futuros.empty:
-        nr = futuros.iloc[0]
+        nr = futuros.sort_values("fecha_pago_dt").iloc[0]
+    elif not df_sorted_all.dropna(subset=["fecha_pago_dt"]).empty:
+        nr = df_sorted_all.dropna(subset=["fecha_pago_dt"]).sort_values("fecha_pago_dt").iloc[-1]
     else:
-        nr = df_year.sort_values("fecha_pago_dt").iloc[-1]
+        nr = df_year.iloc[0]
 
-    fecha_str = (
-        nr["fecha_pago_dt"].strftime("%m/%d/%Y")
-        if not pd.isna(nr["fecha_pago_dt"])
-        else nr["fecha_pago"]
-    )
+    if not pd.isna(nr["fecha_pago_dt"]):
+        fecha_str = nr["fecha_pago_dt"].strftime("%m/%d/%Y")
+    else:
+        fecha_str = str(nr["fecha_pago"])
 
     st.markdown(
         f"""
@@ -288,12 +299,18 @@ st.subheader("📅 Calendario de pagos")
 if df_year.empty:
     st.info("No hay calendario para el año seleccionado.")
 else:
-    for _, row in df_year.sort_values("fecha_pago_dt").iterrows():
-        fecha_str = (
-            row["fecha_pago_dt"].strftime("%m/%d/%Y")
-            if not pd.isna(row["fecha_pago_dt"])
-            else row["fecha_pago"]
-        )
+    df_calendar_sorted = df_year.copy()
+    df_calendar_sorted["fecha_pago_dt"] = pd.to_datetime(
+        df_calendar_sorted["fecha_pago_dt"], errors="coerce"
+    )
+    df_calendar_sorted = df_calendar_sorted.sort_values("fecha_pago_dt")
+
+    for _, row in df_calendar_sorted.iterrows():
+        if not pd.isna(row["fecha_pago_dt"]):
+            fecha_str = row["fecha_pago_dt"].strftime("%m/%d/%Y")
+        else:
+            fecha_str = str(row["fecha_pago"])
+
         st.markdown(
             f"""
             <div style="background-color:#111827;padding:12px 15px;border-radius:10px;
@@ -312,7 +329,7 @@ else:
 st.markdown("---")
 
 # ============================================================
-# LISTA DE PARTICIPANTES (solo título "Participantes")
+# LISTA DE PARTICIPANTES
 # ============================================================
 
 st.subheader("👥 Participantes")
@@ -345,10 +362,13 @@ st.subheader("📜 Historial de la tanda")
 if df_year.empty:
     st.info("No hay historial para el año seleccionado.")
 else:
-    recibieron = df_year[df_year["estatus"] == "Completado"].sort_values(
+    df_hist = df_year.copy()
+    df_hist["fecha_pago_dt"] = pd.to_datetime(df_hist["fecha_pago_dt"], errors="coerce")
+
+    recibieron = df_hist[df_hist["estatus"] == "Completado"].sort_values(
         "fecha_pago_dt"
     )
-    pendientes = df_year[df_year["estatus"] == "Pendiente"].sort_values(
+    pendientes = df_hist[df_hist["estatus"] == "Pendiente"].sort_values(
         "fecha_pago_dt"
     )
 
@@ -361,11 +381,10 @@ else:
         else:
             items = []
             for _, row in recibieron.iterrows():
-                fecha_str = (
-                    row["fecha_pago_dt"].strftime("%m/%d/%Y")
-                    if not pd.isna(row["fecha_pago_dt"])
-                    else row["fecha_pago"]
-                )
+                if not pd.isna(row["fecha_pago_dt"]):
+                    fecha_str = row["fecha_pago_dt"].strftime("%m/%d/%Y")
+                else:
+                    fecha_str = str(row["fecha_pago"])
                 items.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
             contenido_r = "<ul style='color:#D1D5DB;'>" + "".join(items) + "</ul>"
 
@@ -387,11 +406,10 @@ else:
         else:
             items = []
             for _, row in pendientes.iterrows():
-                fecha_str = (
-                    row["fecha_pago_dt"].strftime("%m/%d/%Y")
-                    if not pd.isna(row["fecha_pago_dt"])
-                    else row["fecha_pago"]
-                )
+                if not pd.isna(row["fecha_pago_dt"]):
+                    fecha_str = row["fecha_pago_dt"].strftime("%m/%d/%Y")
+                else:
+                    fecha_str = str(row["fecha_pago"])
                 items.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
             contenido_p = "<ul style='color:#D1D5DB;'>" + "".join(items) + "</ul>"
 
