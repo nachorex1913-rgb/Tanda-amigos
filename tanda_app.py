@@ -25,7 +25,7 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 
 # Nombre del archivo en Google Sheets
-SHEET_NAME = "TandaDB"
+SHEET_NAME = "TandaDB"  # cambia esto si tu Sheet se llama diferente
 spreadsheet = client.open(SHEET_NAME)
 
 sheet_participantes = spreadsheet.worksheet("participantes")
@@ -123,7 +123,7 @@ def safe_parse_date(text):
     """Interpreta una fecha flexible."""
     try:
         return parse_date(text, dayfirst=True)
-    except:
+    except Exception:
         return None
 
 
@@ -153,68 +153,125 @@ with tab_part:
     col_form, col_list = st.columns([1, 2])
 
     with col_form:
-        mode = st.radio("Modo", ["Agregar", "Editar"], horizontal=True)
+        mode = st.radio("Modo", ["Agregar", "Editar"], horizontal=True, key="mode_part")
 
-        if mode == "Editar" and not participants_df.empty:
-            pid = st.selectbox(
-                "Selecciona participante",
-                participants_df["id"].tolist(),
-                format_func=lambda x: participants_df.loc[
-                    participants_df["id"] == x, "nombre"
-                ].values[0]
-            )
-            row = participants_df[participants_df["id"] == pid].iloc[0]
+        # ---------- MODO AGREGAR ----------
+        if mode == "Agregar":
+            nombre = st.text_input("Nombre", key="add_nombre")
+            fecha_cumple = st.text_input("Fecha de cumpleaños (ej. 15/04/1990)", key="add_fecha_cumple")
+            telefono = st.text_input("Teléfono", key="add_telefono")
+            email = st.text_input("Email", key="add_email")
+            notas_p = st.text_area("Notas", key="add_notas")
+
+            if st.button("Guardar Participante", key="btn_add_guardar"):
+                if not nombre.strip():
+                    st.error("El nombre es obligatorio.")
+                else:
+                    fecha_clean = fecha_cumple.strip()
+                    if fecha_clean:
+                        f = safe_parse_date(fecha_clean)
+                        if not f:
+                            st.error("Fecha inválida. Usa un formato tipo 15/04/1990.")
+                            st.stop()
+                        fecha_clean = f.strftime("%Y-%m-%d")
+
+                    new_id = generate_new_id(participants_df)
+                    new_row = {
+                        "id": new_id,
+                        "nombre": nombre.strip(),
+                        "fecha_cumple": fecha_clean,
+                        "telefono": telefono.strip(),
+                        "email": email.strip(),
+                        "notas": notas_p.strip(),
+                    }
+                    participants_df = pd.concat(
+                        [participants_df, pd.DataFrame([new_row])],
+                        ignore_index=True
+                    )
+                    save_participants(participants_df)
+                    participants_df = load_participants()
+                    st.success("Participante agregado correctamente.")
+
+                    # 🔄 LIMPIAR FORMULARIO DESPUÉS DE GUARDAR
+                    for key in ["add_nombre", "add_fecha_cumple", "add_telefono", "add_email", "add_notas"]:
+                        st.session_state[key] = ""
+
+        # ---------- MODO EDITAR ----------
         else:
-            pid = None
-            row = {c: "" for c in COLS_PARTICIPANTES}
-
-        nombre = st.text_input("Nombre", row["nombre"])
-        fecha_cumple = st.text_input("Fecha de cumpleaños", row["fecha_cumple"])
-        telefono = st.text_input("Teléfono", row["telefono"])
-        email = st.text_input("Email", row["email"])
-        notas_p = st.text_area("Notas", row["notas"])
-
-        if st.button("Guardar Participante"):
-            if not nombre.strip():
-                st.error("El nombre es obligatorio.")
-                st.stop()
-
-            fecha_clean = fecha_cumple.strip()
-            if fecha_clean:
-                f = safe_parse_date(fecha_clean)
-                if not f:
-                    st.error("Fecha inválida.")
-                    st.stop()
-                fecha_clean = f.strftime("%Y-%m-%d")
-
-            if mode == "Agregar":
-                new_id = generate_new_id(participants_df)
-                new_row = {
-                    "id": new_id,
-                    "nombre": nombre.strip(),
-                    "fecha_cumple": fecha_clean,
-                    "telefono": telefono.strip(),
-                    "email": email.strip(),
-                    "notas": notas_p.strip(),
-                }
-                participants_df = pd.concat([participants_df, pd.DataFrame([new_row])], ignore_index=True)
+            if participants_df.empty:
+                st.info("No hay participantes para editar.")
             else:
-                participants_df.loc[participants_df["id"] == pid, "nombre"] = nombre.strip()
-                participants_df.loc[participants_df["id"] == pid, "fecha_cumple"] = fecha_clean
-                participants_df.loc[participants_df["id"] == pid, "telefono"] = telefono.strip()
-                participants_df.loc[participants_df["id"] == pid, "email"] = email.strip()
-                participants_df.loc[participants_df["id"] == pid, "notas"] = notas_p.strip()
+                pid = st.selectbox(
+                    "Selecciona participante",
+                    participants_df["id"].tolist(),
+                    format_func=lambda x: participants_df.loc[
+                        participants_df["id"] == x, "nombre"
+                    ].values[0],
+                    key="edit_pid",
+                )
 
-            save_participants(participants_df)
-            participants_df = load_participants()
-            st.success("Participante guardado.")
+                row = participants_df[participants_df["id"] == pid].iloc[0]
 
-        if mode == "Editar" and pid is not None:
-            if st.button("Eliminar participante"):
-                participants_df = participants_df[participants_df["id"] != pid]
-                save_participants(participants_df)
-                st.warning("Participante eliminado.")
-                participants_df = load_participants()
+                # Inicializar campos de edición la primera vez o cuando cambia el participante
+                if (
+                    "edit_current_id" not in st.session_state
+                    or st.session_state["edit_current_id"] != int(pid)
+                ):
+                    st.session_state["edit_nombre"] = row["nombre"]
+                    st.session_state["edit_fecha_cumple"] = row["fecha_cumple"]
+                    st.session_state["edit_telefono"] = row["telefono"]
+                    st.session_state["edit_email"] = row["email"]
+                    st.session_state["edit_notas"] = row["notas"]
+                    st.session_state["edit_current_id"] = int(pid)
+
+                nombre_e = st.text_input("Nombre", key="edit_nombre")
+                fecha_cumple_e = st.text_input(
+                    "Fecha de cumpleaños (ej. 15/04/1990)",
+                    key="edit_fecha_cumple",
+                )
+                telefono_e = st.text_input("Teléfono", key="edit_telefono")
+                email_e = st.text_input("Email", key="edit_email")
+                notas_e = st.text_area("Notas", key="edit_notas")
+
+                if st.button("Guardar Cambios", key="btn_edit_guardar"):
+                    if not nombre_e.strip():
+                        st.error("El nombre es obligatorio.")
+                    else:
+                        fecha_clean = fecha_cumple_e.strip()
+                        if fecha_clean:
+                            f = safe_parse_date(fecha_clean)
+                            if not f:
+                                st.error("Fecha inválida.")
+                                st.stop()
+                            fecha_clean = f.strftime("%Y-%m-%d")
+
+                        participants_df.loc[participants_df["id"] == pid, "nombre"] = nombre_e.strip()
+                        participants_df.loc[participants_df["id"] == pid, "fecha_cumple"] = fecha_clean
+                        participants_df.loc[participants_df["id"] == pid, "telefono"] = telefono_e.strip()
+                        participants_df.loc[participants_df["id"] == pid, "email"] = email_e.strip()
+                        participants_df.loc[participants_df["id"] == pid, "notas"] = notas_e.strip()
+
+                        save_participants(participants_df)
+                        participants_df = load_participants()
+                        st.success("Participante actualizado correctamente.")
+
+                if st.button("Eliminar participante", key="btn_edit_eliminar"):
+                    participants_df = participants_df[participants_df["id"] != pid]
+                    save_participants(participants_df)
+                    participants_df = load_participants()
+                    st.warning("Participante eliminado.")
+
+                    # limpiar estado de edición
+                    for key in [
+                        "edit_nombre",
+                        "edit_fecha_cumple",
+                        "edit_telefono",
+                        "edit_email",
+                        "edit_notas",
+                        "edit_current_id",
+                    ]:
+                        if key in st.session_state:
+                            del st.session_state[key]
 
     with col_list:
         st.subheader("Lista de participantes")
@@ -237,7 +294,7 @@ with tab_cal:
             anio = st.number_input("Año", min_value=2000, max_value=2100, value=datetime.today().year)
             monto = st.number_input("Monto por persona (USD)", min_value=1.0, value=50.0)
 
-            if st.button("Generar Calendario"):
+            if st.button("Generar Calendario", key="btn_generar_cal"):
                 valid = []
                 for _, p in participants_df.iterrows():
                     if p["fecha_cumple"]:
@@ -251,35 +308,38 @@ with tab_cal:
                             })
 
                 if not valid:
-                    st.error("Todos los participantes tienen fecha inválida.")
-                    st.stop()
+                    st.error("Ningún participante tiene fecha de cumpleaños válida.")
+                else:
+                    valid = sorted(valid, key=lambda x: (x["mes"], x["dia"]))
+                    total = (len(participants_df) - 1) * monto
 
-                valid = sorted(valid, key=lambda x: (x["mes"], x["dia"]))
-                total = (len(participants_df) - 1) * monto
+                    # Eliminar calendario previo de ese año
+                    calendar_df = calendar_df[calendar_df["anio"] != anio]
 
-                calendar_df = calendar_df[calendar_df["anio"] != anio]
+                    new_rows = []
+                    for v in valid:
+                        fecha_pago = datetime(anio, v["mes"], v["dia"]).strftime("%Y-%m-%d")
+                        rid = generate_new_id(calendar_df)
+                        new_rows.append({
+                            "id": rid,
+                            "anio": anio,
+                            "id_participante": v["id"],
+                            "nombre_participante": v["nombre"],
+                            "fecha_pago": fecha_pago,
+                            "monto_por_persona": monto,
+                            "total_a_recibir": total,
+                            "estatus": "Pendiente",
+                            "fecha_pago_real": "",
+                            "notas": "",
+                        })
 
-                new_rows = []
-                for v in valid:
-                    fecha_pago = datetime(anio, v["mes"], v["dia"]).strftime("%Y-%m-%d")
-                    rid = generate_new_id(calendar_df)
-                    new_rows.append({
-                        "id": rid,
-                        "anio": anio,
-                        "id_participante": v["id"],
-                        "nombre_participante": v["nombre"],
-                        "fecha_pago": fecha_pago,
-                        "monto_por_persona": monto,
-                        "total_a_recibir": total,
-                        "estatus": "Pendiente",
-                        "fecha_pago_real": "",
-                        "notas": "",
-                    })
-
-                calendar_df = pd.concat([calendar_df, pd.DataFrame(new_rows)], ignore_index=True)
-                save_calendar(calendar_df)
-                calendar_df = load_calendar()
-                st.success("Calendario generado.")
+                    calendar_df = pd.concat(
+                        [calendar_df, pd.DataFrame(new_rows)],
+                        ignore_index=True
+                    )
+                    save_calendar(calendar_df)
+                    calendar_df = load_calendar()
+                    st.success("Calendario generado.")
 
         with colB:
             year_df = calendar_df[calendar_df["anio"] == anio].copy()
@@ -306,9 +366,10 @@ with tab_cal:
                     ],
                     num_rows="fixed",
                     use_container_width=True,
+                    key="editor_calendario",
                 )
 
-                if st.button("Guardar Cambios"):
+                if st.button("Guardar Cambios del Calendario", key="btn_guardar_cal"):
                     for _, r in edited.iterrows():
                         rid = int(r["id"])
                         mask = calendar_df["id"] == rid
@@ -320,12 +381,13 @@ with tab_cal:
 
                         fecha_real = str(r.get("fecha_pago_real", "")).strip()
 
-                        # Asignar fecha real
                         if fecha_real:
                             calendar_df.loc[mask, "fecha_pago_real"] = fecha_real
                         else:
                             if r["estatus"] == "Completado":
-                                calendar_df.loc[mask, "fecha_pago_real"] = datetime.today().strftime("%Y-%m-%d")
+                                calendar_df.loc[mask, "fecha_pago_real"] = datetime.today().strftime(
+                                    "%Y-%m-%d"
+                                )
 
                     save_calendar(calendar_df)
                     calendar_df = load_calendar()
@@ -347,37 +409,47 @@ with tab_hist:
 
         df_year = calendar_df[calendar_df["anio"] == anio_sel].copy()
 
-        completados = (df_year["estatus"] == "Completado").sum()
-        pendientes = (df_year["estatus"] == "Pendiente").sum()
-        dinero_total = df_year["total_a_recibir"].sum()
+        if df_year.empty:
+            st.info("No hay registros para ese año.")
+        else:
+            completados = (df_year["estatus"] == "Completado").sum()
+            pendientes = (df_year["estatus"] == "Pendiente").sum()
+            dinero_total = df_year["total_a_recibir"].sum()
 
-        st.subheader("Resumen")
-        st.write(f"Turnos: **{len(df_year)}**")
-        st.write(f"Completados: **{completados}**")
-        st.write(f"Pendientes: **{pendientes}**")
-        st.write(f"Dinero total: **${dinero_total:,.2f} USD**")
+            st.subheader("Resumen")
+            st.write(f"Turnos: **{len(df_year)}**")
+            st.write(f"Completados: **{completados}**")
+            st.write(f"Pendientes: **{pendientes}**")
+            st.write(f"Dinero total: **${dinero_total:,.2f} USD**")
 
-        st.subheader("Por Participante")
-        resumen = (
-            df_year.groupby("nombre_participante")
-            .agg(
-                turnos=("id", "count"),
-                completados=("estatus", lambda x: (x == "Completado").sum()),
-                pendientes=("estatus", lambda x: (x == "Pendiente").sum()),
-                total_recibir=("total_a_recibir", "sum"),
+            st.subheader("Por Participante")
+            resumen = (
+                df_year.groupby("nombre_participante")
+                .agg(
+                    turnos=("id", "count"),
+                    completados=("estatus", lambda x: (x == "Completado").sum()),
+                    pendientes=("estatus", lambda x: (x == "Pendiente").sum()),
+                    total_recibir=("total_a_recibir", "sum"),
+                )
+                .reset_index()
             )
-            .reset_index()
-        )
-        st.dataframe(resumen, use_container_width=True)
+            st.dataframe(resumen, use_container_width=True)
 
-        st.subheader("Detalle")
-        df_year["fecha_pago"] = pd.to_datetime(
-            df_year["fecha_pago"], errors="coerce"
-        ).dt.strftime("%Y-%m-%d")
+            st.subheader("Detalle")
+            df_year["fecha_pago"] = pd.to_datetime(
+                df_year["fecha_pago"], errors="coerce"
+            ).dt.strftime("%Y-%m-%d")
 
-        st.dataframe(
-            df_year[
-                ["nombre_participante", "fecha_pago", "fecha_pago_real", "estatus", "total_a_recibir", "notas"]
-            ],
-            use_container_width=True,
-        )
+            st.dataframe(
+                df_year[
+                    [
+                        "nombre_participante",
+                        "fecha_pago",
+                        "fecha_pago_real",
+                        "estatus",
+                        "total_a_recibir",
+                        "notas",
+                    ]
+                ],
+                use_container_width=True,
+            )
