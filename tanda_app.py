@@ -1,3 +1,22 @@
+def load_participants():
+    df = get_as_dataframe(sheet_participantes, evaluate_formulas=True, header=0)
+    df = df.dropna(how="all")
+    df = df.fillna("")
+    return df
+
+def save_participants(df):
+    sheet_participantes.clear()
+    set_with_dataframe(sheet_participantes, df)
+
+def load_calendar():
+    df = get_as_dataframe(sheet_calendario, evaluate_formulas=True, header=0)
+    df = df.dropna(how="all")
+    df = df.fillna("")
+    return df
+
+def save_calendar(df):
+    sheet_calendario.clear()
+    set_with_dataframe(sheet_calendario, df)
 import gspread
 from google.oauth2.service_account import Credentials
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
