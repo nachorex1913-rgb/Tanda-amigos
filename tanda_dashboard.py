@@ -21,9 +21,6 @@ hide_streamlit_style = """
 
         /* Oculta el pie de página "Made with Streamlit" */
         footer {visibility: hidden !important;}
-
-        /* Oculta la toolbar de Streamlit (iconos de arriba a la derecha, pero deja el header) */
-        .stAppToolbar {display: none !important;}
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
