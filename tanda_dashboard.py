@@ -1,3 +1,28 @@
+# ============================================================
+# OCULTAR BARRA SUPERIOR, MENU Y FOOTER (Modo Dashboard Seguro)
+# ============================================================
+
+hide_streamlit_style = """
+    <style>
+        /* Oculta la barra superior (Share, Restart, etc) */
+        header {visibility: hidden !important;}
+
+        /* Oculta menú de los tres puntos */
+        .stAppToolbar {display: none !important;}
+
+        /* Oculta el menú principal de Streamlit */
+        #MainMenu {visibility: hidden !important;}
+
+        /* Oculta el pie de página "Made with Streamlit" */
+        footer {visibility: hidden !important;}
+
+        /* Asegura que no quede espacio en blanco arriba */
+        .css-18e3th9 {
+            padding-top: 0 !important;
+        }
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 import streamlit as st
 import pandas as pd
 from datetime import datetime
