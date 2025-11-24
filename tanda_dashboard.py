@@ -72,29 +72,37 @@ def load_calendar():
         return pd.DataFrame(columns=COLS_CALENDARIO)
     df = ensure_columns(df.fillna(""), COLS_CALENDARIO)
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
-    df["anio"] = pd.to_numeric(df["anio"], errors="coerce").fillna(datetime.today().year).astype(int)
+    df["anio"] = pd.to_numeric(df["anio"], errors="coerce").fillna(
+        datetime.today().year
+    ).astype(int)
     return df
 
 
 # ============================================================
-# LOGIN
+# LOGIN CON PIN (y se oculta tras entrar)
 # ============================================================
 
-PASSWORD = "12345"
+PASSWORD = "12345"  # cámbiala si quieres
 
 def check_password():
-    with st.form("login"):
-        st.subheader("🔐 Acceso al Dashboard Financiero")
-        pwd = st.text_input("Contraseña", type="password")
-        btn = st.form_submit_button("Entrar")
+    # Si ya está autenticado, no mostramos el login
+    if st.session_state.get("auth", False):
+        return True
 
-    if btn:
+    st.title("🔐 Acceso al Dashboard Financiero")
+
+    with st.form("login_form"):
+        pwd = st.text_input("PIN de acceso", type="password")
+        submit = st.form_submit_button("Entrar")
+
+    if submit:
         if pwd == PASSWORD:
-            st.session_state.auth = True
+            st.session_state["auth"] = True
+            st.experimental_rerun()
         else:
-            st.error("Contraseña incorrecta")
+            st.error("PIN incorrecto")
 
-    return st.session_state.get("auth", False)
+    return False
 
 
 st.set_page_config(page_title="Tanda Dashboard", page_icon="💸", layout="wide")
@@ -113,89 +121,118 @@ calendar_df = load_calendar()
 anio_actual = datetime.today().year
 df_year = calendar_df[calendar_df["anio"] == anio_actual].copy()
 
+# Procesar fechas
+if not df_year.empty:
+    df_year["fecha_pago_dt"] = pd.to_datetime(df_year["fecha_pago"], errors="coerce")
+else:
+    df_year["fecha_pago_dt"] = pd.NaT
+
 
 # ============================================================
 # SIDEBAR
 # ============================================================
 
-st.sidebar.title("📊 Dashboard Financiero")
-st.sidebar.markdown("Visualización completa de la Tanda")
+st.sidebar.title("📊 Dashboard de la Tanda")
+st.sidebar.markdown("Navega por la información financiera de la tanda.")
 
 menu = st.sidebar.radio(
-    "Selecciona sección",
+    "Secciones",
     ["🏠 Inicio", "📅 Calendario", "👥 Participantes", "📊 Historial"],
 )
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Tanda entre Amigos — Vista Solo Lectura")
+st.sidebar.caption(f"Año actual: {anio_actual}")
 
 
 # ============================================================
-# SECCIÓN: INICIO FINANCIERO
+# SECCIÓN: INICIO (vista financiera con iconos pequeños)
 # ============================================================
 
 if menu == "🏠 Inicio":
+    st.markdown("<h1 style='text-align:center;'>💸 Dashboard Financiero de la Tanda</h1>", unsafe_allow_html=True)
+    st.write("")
 
-    st.markdown("<h1 style='text-align:center;'>💸 Dashboard Financiero</h1>", unsafe_allow_html=True)
+    # Métricas rápidas con iconos pequeños
+    col1, col2, col3 = st.columns(3)
+
+    # 👥 Número de participantes
+    num_participants = len(participants_df)
+    with col1:
+        st.markdown(
+            f"""
+            <div style="background-color:#f5f5f5;padding:10px 15px;border-radius:10px; text-align:center;">
+                <div style="font-size:28px;">👥</div>
+                <div style="font-size:14px;color:#555;">Participantes</div>
+                <div style="font-size:22px;font-weight:bold;">{num_participants}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # 💵 Monto que recibe cada uno (tanda por cumpleañero)
+    if not df_year.empty:
+        monto_por_persona = df_year["total_a_recibir"].iloc[0]
+    else:
+        monto_por_persona = 0.0
+
+    with col2:
+        st.markdown(
+            f"""
+            <div style="background-color:#f5f5f5;padding:10px 15px;border-radius:10px; text-align:center;">
+                <div style="font-size:28px;">💵</div>
+                <div style="font-size:14px;color:#555;">Monto por cumpleañero</div>
+                <div style="font-size:22px;font-weight:bold;">${monto_por_persona:,.2f}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # 💰 Bolsa total del año (suma total_a_recibir)
+    if not df_year.empty:
+        bolsa_total = df_year["total_a_recibir"].sum()
+    else:
+        bolsa_total = 0.0
+
+    with col3:
+        st.markdown(
+            f"""
+            <div style="background-color:#f5f5f5;padding:10px 15px;border-radius:10px; text-align:center;">
+                <div style="font-size:28px;">💰</div>
+                <div style="font-size:14px;color:#555;">Bolsa acumulada del año</div>
+                <div style="font-size:22px;font-weight:bold;">${bolsa_total:,.2f}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("---")
+
+    # Tarjeta: Próximo en recibir por cumpleaños / fecha de pago
+    st.subheader("🎉 Próximo en recibir su tanda")
 
     if not df_year.empty:
-
-        # TOTAL BOLSA
-        total_bolsa = df_year["total_a_recibir"].sum()
-
-        # SIGUIENTE EN RECIBIR
-        df_year_sorted = df_year.sort_values("fecha_pago")
         hoy = datetime.today().date()
+        df_future = df_year[df_year["fecha_pago_dt"].dt.date >= hoy].sort_values("fecha_pago_dt")
 
-        df_year_sorted["fecha_pago_date"] = pd.to_datetime(df_year_sorted["fecha_pago"]).dt.date
-        next_row = df_year_sorted[df_year_sorted["fecha_pago_date"] >= hoy].head(1)
+        if not df_future.empty:
+            nr = df_future.iloc[0]
+        else:
+            # Si ya pasaron todos, mostramos el último del año
+            nr = df_year.sort_values("fecha_pago_dt").iloc[-1]
 
-        # Widget 1: Bolsa
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.markdown("""
-            <div style="background-color:#e8f5e9;padding:25px;border-radius:15px;text-align:center;">
-                <h2>💰 Bolsa del Año</h2>
-                <h1 style="color:#2e7d32;">${:,.2f}</h1>
+        st.markdown(
+            f"""
+            <div style="background-color:#e8f5e9;padding:20px;border-radius:15px;">
+                <h2 style="margin-top:0;">🎂 {nr['nombre_participante']}</h2>
+                <p><b>Fecha de pago:</b> {nr['fecha_pago_dt'].strftime('%Y-%m-%d')}</p>
+                <p><b>Monto que recibirá:</b> ${nr['total_a_recibir']:,.2f}</p>
+                <p><b>Estatus:</b> {nr['estatus']}</p>
             </div>
-            """.format(total_bolsa), unsafe_allow_html=True)
-
-        # Widget 2: Participantes
-        with col2:
-            st.markdown(f"""
-            <div style="background-color:#e3f2fd;padding:25px;border-radius:15px;text-align:center;">
-                <h2>👥 Participantes</h2>
-                <h1 style="color:#0277bd;">{len(participants_df)}</h1>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # Widget 3: Turnos pendientes
-        pendientes = (df_year["estatus"] == "Pendiente").sum()
-        with col3:
-            st.markdown(f"""
-            <div style="background-color:#fff9c4;padding:25px;border-radius:15px;text-align:center;">
-                <h2>⏳ Pendientes</h2>
-                <h1 style="color:#f57f17;">{pendientes}</h1>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown("---")
-
-        # Tarjeta: Próximo en recibir
-        if not next_row.empty:
-            nr = next_row.iloc[0]
-            st.markdown(f"""
-            <div style="background-color:#ede7f6;padding:30px;border-radius:15px;">
-                <h2>🎉 Próximo en recibir su tanda</h2>
-                <h1 style="font-size:36px;">{nr['nombre_participante']}</h1>
-                <p><b>Fecha:</b> {nr['fecha_pago']}</p>
-                <p><b>Total a recibir:</b> ${nr['total_a_recibir']:,.2f}</p>
-            </div>
-            """, unsafe_allow_html=True)
-
+            """,
+            unsafe_allow_html=True,
+        )
     else:
-        st.info("Aún no hay calendario generado para este año.")
+        st.info("Todavía no hay calendario generado para este año.")
 
 
 # ============================================================
@@ -203,15 +240,23 @@ if menu == "🏠 Inicio":
 # ============================================================
 
 elif menu == "📅 Calendario":
-
-    st.header("📅 Calendario del Año")
+    st.header("📅 Calendario de pagos de la tanda")
 
     if df_year.empty:
-        st.info("No hay calendario para este año.")
+        st.info("No hay calendario registrado para este año.")
     else:
+        df_view = df_year.copy()
+        df_view["fecha_pago"] = df_view["fecha_pago_dt"].dt.strftime("%Y-%m-%d")
+
         st.dataframe(
-            df_year[
-                ["nombre_participante", "fecha_pago", "estatus", "total_a_recibir", "notas"]
+            df_view[
+                [
+                    "nombre_participante",
+                    "fecha_pago",
+                    "estatus",
+                    "total_a_recibir",
+                    "notas",
+                ]
             ].sort_values("fecha_pago"),
             use_container_width=True,
         )
@@ -222,18 +267,23 @@ elif menu == "📅 Calendario":
 # ============================================================
 
 elif menu == "👥 Participantes":
+    st.header("👥 Lista de participantes")
 
-    st.header("👥 Lista de Participantes")
-
-    for _, row in participants_df.iterrows():
-        st.markdown(f"""
-        <div style="background-color:#f5f5f5;padding:15px;border-radius:10px;margin-bottom:10px;">
-            <h3>👤 {row['nombre']}</h3>
-            <p><b>🎂 Cumpleaños:</b> {row['fecha_cumple']}</p>
-            <p><b>📞 Teléfono:</b> {row['telefono']}</p>
-            <p><b>📧 Email:</b> {row['email']}</p>
-        </div>
-        """, unsafe_allow_html=True)
+    if participants_df.empty:
+        st.info("Aún no hay participantes registrados.")
+    else:
+        for _, row in participants_df.iterrows():
+            st.markdown(
+                f"""
+                <div style="background-color:#f9f9f9;padding:12px 15px;border-radius:10px;margin-bottom:8px;">
+                    <div style="font-size:20px;font-weight:bold;">👤 {row['nombre']}</div>
+                    <div><b>🎂 Cumpleaños:</b> {row['fecha_cumple']}</div>
+                    <div><b>📞 Teléfono:</b> {row['telefono']}</div>
+                    <div><b>📧 Email:</b> {row['email']}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 # ============================================================
@@ -241,18 +291,33 @@ elif menu == "👥 Participantes":
 # ============================================================
 
 elif menu == "📊 Historial":
-
-    st.header("📊 Historial Financiero")
+    st.header("📊 Historial financiero del año")
 
     if df_year.empty:
-        st.info("No hay historial este año.")
+        st.info("No hay historial registrado para este año.")
     else:
         completados = (df_year["estatus"] == "Completado").sum()
-        st.metric("Pagos completados", completados)
+        pendientes = (df_year["estatus"] == "Pendiente").sum()
 
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Pagos completados", completados)
+        with col2:
+            st.metric("Pagos pendientes", pendientes)
+
+        df_hist = df_year.copy()
+        df_hist["fecha_pago"] = df_hist["fecha_pago_dt"].dt.strftime("%Y-%m-%d")
+        st.subheader("Detalle de turnos")
         st.dataframe(
-            df_year[
-                ["nombre_participante", "fecha_pago", "fecha_pago_real", "estatus", "total_a_recibir"]
-            ],
+            df_hist[
+                [
+                    "nombre_participante",
+                    "fecha_pago",
+                    "fecha_pago_real",
+                    "estatus",
+                    "total_a_recibir",
+                    "notas",
+                ]
+            ].sort_values("fecha_pago"),
             use_container_width=True,
         )
