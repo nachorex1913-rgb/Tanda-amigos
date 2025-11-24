@@ -16,11 +16,16 @@ st.set_page_config(page_title="Tanda Dashboard", page_icon="💸", layout="wide"
 # ============================================================
 hide_streamlit_style = """
     <style>
-        /* Oculta el menú principal de Streamlit (arriba Izq en desktop) */
+        /* Oculta menú principal */
         #MainMenu {visibility: hidden !important;}
 
-        /* Oculta el pie de página "Made with Streamlit" */
+        /* Oculta footer */
         footer {visibility: hidden !important;}
+
+        /* Oculta los iconos de la derecha (Share, Edit, GitHub) */
+        div[data-testid="stToolbar"] {
+            display: none !important;
+        }
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
