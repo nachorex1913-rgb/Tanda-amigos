@@ -1,3 +1,6 @@
 streamlit
 pandas
+google-auth
+gspread
+gspread_dataframe
 python-dateutil
