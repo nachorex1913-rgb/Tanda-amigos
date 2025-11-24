@@ -1,28 +1,3 @@
-# ============================================================
-# OCULTAR BARRA SUPERIOR, MENU Y FOOTER (Modo Dashboard Seguro)
-# ============================================================
-
-hide_streamlit_style = """
-    <style>
-        /* Oculta la barra superior (Share, Restart, etc) */
-        header {visibility: hidden !important;}
-
-        /* Oculta menú de los tres puntos */
-        .stAppToolbar {display: none !important;}
-
-        /* Oculta el menú principal de Streamlit */
-        #MainMenu {visibility: hidden !important;}
-
-        /* Oculta el pie de página "Made with Streamlit" */
-        footer {visibility: hidden !important;}
-
-        /* Asegura que no quede espacio en blanco arriba */
-        .css-18e3th9 {
-            padding-top: 0 !important;
-        }
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -31,6 +6,30 @@ from google.oauth2.service_account import Credentials
 import gspread
 from gspread_dataframe import get_as_dataframe
 
+# ============================================================
+# CONFIG STREAMLIT
+# ============================================================
+st.set_page_config(page_title="Tanda Dashboard", page_icon="💸", layout="wide")
+
+# ============================================================
+# OCULTAR BARRA SUPERIOR, MENÚ Y FOOTER (modo dashboard)
+# ============================================================
+hide_streamlit_style = """
+    <style>
+        /* Oculta la barra superior (Share, Restart, etc.) */
+        header {visibility: hidden !important;}
+
+        /* Oculta toolbar / tres puntitos */
+        .stAppToolbar {display: none !important;}
+
+        /* Oculta el menú principal de Streamlit */
+        #MainMenu {visibility: hidden !important;}
+
+        /* Oculta el pie de página "Made with Streamlit" */
+        footer {visibility: hidden !important;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ============================================================
 # CONFIG: GOOGLE SHEETS (SOLO LECTURA)
@@ -104,16 +103,16 @@ def load_calendar():
 
 
 # ============================================================
-# LOGIN CON PIN (se oculta al entrar)
+# LOGIN CON PIN
 # ============================================================
 
-PASSWORD = "12345"  # cámbiala si quieres
+PASSWORD = "12345"  # puedes cambiarlo
 
 def check_password():
+    # Si ya está autenticado, no mostramos login
     if st.session_state.get("auth", False):
         return True
 
-    st.set_page_config(page_title="Tanda Dashboard", page_icon="💸", layout="wide")
     st.title("🔐 Acceso al Dashboard Financiero")
 
     with st.form("login_form"):
@@ -123,16 +122,12 @@ def check_password():
     if submit:
         if pwd == PASSWORD:
             st.session_state["auth"] = True
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("PIN incorrecto")
 
     return False
 
-
-# Necesitamos llamar set_page_config solo una vez
-if "auth" not in st.session_state:
-    st.set_page_config(page_title="Tanda Dashboard", page_icon="💸", layout="wide")
 
 if not check_password():
     st.stop()
@@ -145,11 +140,11 @@ if not check_password():
 participants_df = load_participants()
 calendar_df = load_calendar()
 
-# Lista de años disponibles en el calendario
 if not calendar_df.empty:
     available_years = sorted(calendar_df["anio"].unique())
 else:
     available_years = []
+
 
 # ============================================================
 # SIDEBAR
@@ -179,7 +174,7 @@ else:
     st.sidebar.caption("Sin calendario aún.")
 
 
-# Filtrar por año seleccionado
+# Filtrar por año
 if selected_year is not None:
     df_year = calendar_df[calendar_df["anio"] == selected_year].copy()
     if not df_year.empty:
@@ -202,7 +197,7 @@ if menu == "🏠 Inicio":
     )
     st.write("")
 
-    # ---- Tarjetas pequeñas con iconos ----
+    # Tarjetas pequeñas con iconos
     col1, col2, col3 = st.columns(3)
 
     # 👥 Participantes
@@ -219,7 +214,7 @@ if menu == "🏠 Inicio":
             unsafe_allow_html=True,
         )
 
-    # 💸 Aporte por persona (cuota)
+    # 💸 Aporte por persona
     if not df_year.empty:
         aporte_por_persona = float(df_year["monto_por_persona"].iloc[0])
     else:
@@ -237,7 +232,7 @@ if menu == "🏠 Inicio":
             unsafe_allow_html=True,
         )
 
-    # 💰 Monto que recibe cada cumpleañero (total_a_recibir por turno)
+    # 💰 Monto que recibe cada cumpleañero
     if not df_year.empty:
         monto_por_cumpleanero = float(df_year["total_a_recibir"].iloc[0])
     else:
@@ -257,7 +252,7 @@ if menu == "🏠 Inicio":
 
     st.markdown("---")
 
-    # ---- Próximo en recibir su tanda ----
+    # Próximo en recibir
     st.subheader("🎉 Próximo en recibir su tanda")
 
     if not df_year.empty:
@@ -267,10 +262,13 @@ if menu == "🏠 Inicio":
         if not futuros.empty:
             nr = futuros.iloc[0]
         else:
-            # Si ya pasaron todos en el año, mostramos el último
             nr = df_year.sort_values("fecha_pago_dt").iloc[-1]
 
-        fecha_str = nr["fecha_pago_dt"].strftime("%Y-%m-%d") if not pd.isna(nr["fecha_pago_dt"]) else nr["fecha_pago"]
+        fecha_str = (
+            nr["fecha_pago_dt"].strftime("%Y-%m-%d")
+            if not pd.isna(nr["fecha_pago_dt"])
+            else nr["fecha_pago"]
+        )
 
         st.markdown(
             f"""
