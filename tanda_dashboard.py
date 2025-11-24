@@ -12,17 +12,17 @@ from gspread_dataframe import get_as_dataframe
 st.set_page_config(page_title="Tanda Dashboard", page_icon="💸", layout="wide")
 
 # ============================================================
-# OCULTAR MENÚ Y FOOTER, PERO DEJAR HEADER (HAMBURGUER) VISIBLE
+# OCULTAR MENÚ Y FOOTER, PERO DEJAR HEADER Y SIDEBAR
 # ============================================================
 hide_streamlit_style = """
     <style>
-        /* Oculta menú principal */
+        /* Oculta el menú principal de Streamlit (▾ arriba izq en desktop) */
         #MainMenu {visibility: hidden !important;}
 
-        /* Oculta footer */
+        /* Oculta el pie de página "Made with Streamlit" */
         footer {visibility: hidden !important;}
 
-        /* Oculta los iconos de la derecha (Share, Edit, GitHub) */
+        /* Oculta los iconos de la derecha: Share, estrella, lápiz, GitHub */
         div[data-testid="stToolbar"] {
             display: none !important;
         }
@@ -106,7 +106,7 @@ def load_calendar():
 # LOGIN CON PIN
 # ============================================================
 
-PASSWORD = "12345"  # puedes cambiarlo
+PASSWORD = "12345"  # cambia esta si quieres
 
 def check_password():
     # Si ya está autenticado, no mostramos login
@@ -178,7 +178,9 @@ else:
 if selected_year is not None:
     df_year = calendar_df[calendar_df["anio"] == selected_year].copy()
     if not df_year.empty:
-        df_year["fecha_pago_dt"] = pd.to_datetime(df_year["fecha_pago"], errors="coerce")
+        df_year["fecha_pago_dt"] = pd.to_datetime(
+            df_year["fecha_pago"], errors="coerce"
+        )
     else:
         df_year["fecha_pago_dt"] = pd.NaT
 else:
@@ -205,7 +207,8 @@ if menu == "🏠 Inicio":
     with col1:
         st.markdown(
             f"""
-            <div style="background-color:#111827;padding:10px 15px;border-radius:10px; text-align:center;border:1px solid #374151;">
+            <div style="background-color:#111827;padding:10px 15px;border-radius:10px;
+                        text-align:center;border:1px solid #374151;">
                 <div style="font-size:24px;">👥</div>
                 <div style="font-size:13px;color:#9CA3AF;">Participantes</div>
                 <div style="font-size:22px;font-weight:bold;color:white;">{num_participants}</div>
@@ -223,10 +226,13 @@ if menu == "🏠 Inicio":
     with col2:
         st.markdown(
             f"""
-            <div style="background-color:#111827;padding:10px 15px;border-radius:10px; text-align:center;border:1px solid #374151;">
+            <div style="background-color:#111827;padding:10px 15px;border-radius:10px;
+                        text-align:center;border:1px solid #374151;">
                 <div style="font-size:24px;">💸</div>
                 <div style="font-size:13px;color:#9CA3AF;">Aporte por persona</div>
-                <div style="font-size:22px;font-weight:bold;color:white;">${aporte_por_persona:,.2f}</div>
+                <div style="font-size:22px;font-weight:bold;color:white;">
+                    ${aporte_por_persona:,.2f}
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -241,10 +247,13 @@ if menu == "🏠 Inicio":
     with col3:
         st.markdown(
             f"""
-            <div style="background-color:#111827;padding:10px 15px;border-radius:10px; text-align:center;border:1px solid #374151;">
+            <div style="background-color:#111827;padding:10px 15px;border-radius:10px;
+                        text-align:center;border:1px solid #374151;">
                 <div style="font-size:24px;">💰</div>
                 <div style="font-size:13px;color:#9CA3AF;">Monto por cumpleañero</div>
-                <div style="font-size:22px;font-weight:bold;color:white;">${monto_por_cumpleanero:,.2f}</div>
+                <div style="font-size:22px;font-weight:bold;color:white;">
+                    ${monto_por_cumpleanero:,.2f}
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -257,7 +266,9 @@ if menu == "🏠 Inicio":
 
     if not df_year.empty:
         hoy = datetime.today().date()
-        futuros = df_year[df_year["fecha_pago_dt"].dt.date >= hoy].sort_values("fecha_pago_dt")
+        futuros = df_year[df_year["fecha_pago_dt"].dt.date >= hoy].sort_values(
+            "fecha_pago_dt"
+        )
 
         if not futuros.empty:
             nr = futuros.iloc[0]
@@ -272,10 +283,12 @@ if menu == "🏠 Inicio":
 
         st.markdown(
             f"""
-            <div style="background-color:#111827;padding:20px;border-radius:15px;border:1px solid #374151;">
+            <div style="background-color:#111827;padding:20px;border-radius:15px;
+                        border:1px solid #374151;">
                 <h2 style="margin-top:0;color:white;">🎂 {nr['nombre_participante']}</h2>
                 <p style="color:#D1D5DB;"><b>Fecha de pago:</b> {fecha_str}</p>
-                <p style="color:#D1D5DB;"><b>Monto a recibir:</b> ${float(nr['total_a_recibir']):,.2f}</p>
+                <p style="color:#D1D5DB;"><b>Monto a recibir:</b>
+                    ${float(nr['total_a_recibir']):,.2f}</p>
                 <p style="color:#D1D5DB;"><b>Estatus:</b> {nr['estatus']}</p>
             </div>
             """,
@@ -328,8 +341,11 @@ elif menu == "👥 Participantes":
         for _, row in participants_df.iterrows():
             st.markdown(
                 f"""
-                <div style="background-color:#111827;padding:12px 15px;border-radius:10px;margin-bottom:8px;border:1px solid #374151;">
-                    <div style="font-size:18px;font-weight:bold;color:white;">👤 {row['nombre']}</div>
+                <div style="background-color:#111827;padding:12px 15px;border-radius:10px;
+                            margin-bottom:8px;border:1px solid #374151;">
+                    <div style="font-size:18px;font-weight:bold;color:white;">
+                        👤 {row['nombre']}
+                    </div>
                     <div style="color:#D1D5DB;"><b>🎂 Cumpleaños:</b> {row['fecha_cumple']}</div>
                     <div style="color:#D1D5DB;"><b>📞 Teléfono:</b> {row['telefono']}</div>
                     <div style="color:#D1D5DB;"><b>📧 Email:</b> {row['email']}</div>
