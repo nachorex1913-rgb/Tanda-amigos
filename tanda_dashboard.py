@@ -163,18 +163,15 @@ else:
 if selected_year is not None:
     df_year = calendar_df[calendar_df["anio"] == selected_year].copy()
     if not df_year.empty:
-        # INTERPRETAR LAS FECHAS COMO MM/DD/AAAA
+        # Volvemos al comportamiento anterior: interpretar fechas sin formato fijo
         df_year["fecha_pago_dt"] = pd.to_datetime(
-            df_year["fecha_pago"], format="%m/%d/%Y", errors="coerce"
+            df_year["fecha_pago"], errors="coerce"
         )
     else:
         df_year["fecha_pago_dt"] = pd.NaT
 else:
     df_year = pd.DataFrame(columns=COLS_CALENDARIO)
     df_year["fecha_pago_dt"] = pd.NaT
-
-# Asegurar que siempre sea datetime antes de usar .dt
-df_year["fecha_pago_dt"] = pd.to_datetime(df_year["fecha_pago_dt"], errors="coerce")
 
 # ============================================================
 # TARJETAS RESUMEN
@@ -250,25 +247,28 @@ st.subheader("🎉 Próximo en recibir su tanda")
 if not df_year.empty:
     hoy = datetime.today().date()
 
-    # Reasegurar fechas válidas
-    fechas_validas = pd.to_datetime(df_year["fecha_pago_dt"], errors="coerce")
-    mask_future = fechas_validas.notna() & (fechas_validas.dt.date >= hoy)
+    # Aseguramos que fecha_pago_dt sea datetime64
+    df_year["fecha_pago_dt"] = pd.to_datetime(df_year["fecha_pago_dt"], errors="coerce")
 
-    futuros = df_year[mask_future].copy()
-    futuros["fecha_pago_dt"] = fechas_validas[mask_future]
-
-    df_sorted_all = df_year.copy()
-    df_sorted_all["fecha_pago_dt"] = fechas_validas
+    # Futuros: fecha >= hoy
+    futuros = df_year[
+        df_year["fecha_pago_dt"].notna() &
+        (df_year["fecha_pago_dt"].dt.date >= hoy)
+    ].sort_values("fecha_pago_dt")
 
     if not futuros.empty:
-        nr = futuros.sort_values("fecha_pago_dt").iloc[0]
-    elif not df_sorted_all.dropna(subset=["fecha_pago_dt"]).empty:
-        nr = df_sorted_all.dropna(subset=["fecha_pago_dt"]).sort_values("fecha_pago_dt").iloc[-1]
+        nr = futuros.iloc[0]
     else:
-        nr = df_year.iloc[0]
+        # Si no hay futuros, usar el último con fecha válida
+        df_valid = df_year[df_year["fecha_pago_dt"].notna()].sort_values("fecha_pago_dt")
+        if not df_valid.empty:
+            nr = df_valid.iloc[-1]
+        else:
+            # Si ni siquiera hay fechas válidas, tomar la primera fila tal cual
+            nr = df_year.iloc[0]
 
     if not pd.isna(nr["fecha_pago_dt"]):
-        fecha_str = nr["fecha_pago_dt"].strftime("%m/%d/%Y")
+        fecha_str = nr["fecha_pago_dt"].strftime("%Y-%m-%d")
     else:
         fecha_str = str(nr["fecha_pago"])
 
@@ -307,7 +307,7 @@ else:
 
     for _, row in df_calendar_sorted.iterrows():
         if not pd.isna(row["fecha_pago_dt"]):
-            fecha_str = row["fecha_pago_dt"].strftime("%m/%d/%Y")
+            fecha_str = row["fecha_pago_dt"].strftime("%Y-%m-%d")
         else:
             fecha_str = str(row["fecha_pago"])
 
@@ -382,7 +382,7 @@ else:
             items = []
             for _, row in recibieron.iterrows():
                 if not pd.isna(row["fecha_pago_dt"]):
-                    fecha_str = row["fecha_pago_dt"].strftime("%m/%d/%Y")
+                    fecha_str = row["fecha_pago_dt"].strftime("%Y-%m-%d")
                 else:
                     fecha_str = str(row["fecha_pago"])
                 items.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
@@ -407,7 +407,7 @@ else:
             items = []
             for _, row in pendientes.iterrows():
                 if not pd.isna(row["fecha_pago_dt"]):
-                    fecha_str = row["fecha_pago_dt"].strftime("%m/%d/%Y")
+                    fecha_str = row["fecha_pago_dt"].strftime("%Y-%m-%d")
                 else:
                     fecha_str = str(row["fecha_pago"])
                 items.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
