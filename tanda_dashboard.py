@@ -163,8 +163,9 @@ else:
 if selected_year is not None:
     df_year = calendar_df[calendar_df["anio"] == selected_year].copy()
     if not df_year.empty:
+        # INTERPRETAR LAS FECHAS COMO MM/DD/AAAA
         df_year["fecha_pago_dt"] = pd.to_datetime(
-            df_year["fecha_pago"], errors="coerce"
+            df_year["fecha_pago"], format="%m/%d/%Y", errors="coerce"
         )
     else:
         df_year["fecha_pago_dt"] = pd.NaT
@@ -255,7 +256,7 @@ if not df_year.empty:
         nr = df_year.sort_values("fecha_pago_dt").iloc[-1]
 
     fecha_str = (
-        nr["fecha_pago_dt"].strftime("%Y-%m-%d")
+        nr["fecha_pago_dt"].strftime("%m/%d/%Y")
         if not pd.isna(nr["fecha_pago_dt"])
         else nr["fecha_pago"]
     )
@@ -279,7 +280,7 @@ else:
 st.markdown("---")
 
 # ============================================================
-# CALENDARIO DE PAGOS
+# CALENDARIO DE PAGOS COMO TARJETAS
 # ============================================================
 
 st.subheader("📅 Calendario de pagos")
@@ -287,32 +288,34 @@ st.subheader("📅 Calendario de pagos")
 if df_year.empty:
     st.info("No hay calendario para el año seleccionado.")
 else:
-    df_view = df_year.copy()
-    df_view["fecha_pago"] = pd.to_datetime(
-        df_view["fecha_pago"], errors="coerce"
-    ).dt.strftime("%Y-%m-%d")
-
-    st.dataframe(
-        df_view[
-            [
-                "nombre_participante",
-                "fecha_pago",
-                "monto_por_persona",
-                "total_a_recibir",
-                "estatus",
-                "notas",
-            ]
-        ].sort_values("fecha_pago"),
-        use_container_width=True,
-    )
+    for _, row in df_year.sort_values("fecha_pago_dt").iterrows():
+        fecha_str = (
+            row["fecha_pago_dt"].strftime("%m/%d/%Y")
+            if not pd.isna(row["fecha_pago_dt"])
+            else row["fecha_pago"]
+        )
+        st.markdown(
+            f"""
+            <div style="background-color:#111827;padding:12px 15px;border-radius:10px;
+                        margin-bottom:8px;border:1px solid #374151;">
+                <div style="font-size:16px;font-weight:bold;color:white;">
+                    📆 {row['nombre_participante']}
+                </div>
+                <div style="color:#D1D5DB;">
+                    <b>Fecha de pago:</b> {fecha_str}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 st.markdown("---")
 
 # ============================================================
-# LISTA DE PARTICIPANTES (nombre + cumpleaños)
+# LISTA DE PARTICIPANTES (solo título "Participantes")
 # ============================================================
 
-st.subheader("👥 Participantes (nombre y cumpleaños)")
+st.subheader("👥 Participantes")
 
 if participants_df.empty:
     st.info("Aún no hay participantes registrados.")
@@ -334,7 +337,7 @@ else:
 st.markdown("---")
 
 # ============================================================
-# HISTORIAL: RECIBIERON vs PENDIENTES
+# HISTORIAL: DOS TARJETAS (RECIBIERON / PENDIENTES)
 # ============================================================
 
 st.subheader("📜 Historial de la tanda")
@@ -351,28 +354,54 @@ else:
 
     col_r, col_p = st.columns(2)
 
+    # Tarjeta: Ya recibieron
     with col_r:
-        st.markdown("**✅ Ya recibieron su tanda:**")
         if recibieron.empty:
-            st.write("— Ninguno todavía.")
+            contenido_r = "<p style='color:#D1D5DB;'>— Ninguno todavía.</p>"
         else:
+            items = []
             for _, row in recibieron.iterrows():
                 fecha_str = (
-                    row["fecha_pago_dt"].strftime("%Y-%m-%d")
+                    row["fecha_pago_dt"].strftime("%m/%d/%Y")
                     if not pd.isna(row["fecha_pago_dt"])
                     else row["fecha_pago"]
                 )
-                st.markdown(f"- {row['nombre_participante']} — {fecha_str}")
+                items.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
+            contenido_r = "<ul style='color:#D1D5DB;'>" + "".join(items) + "</ul>"
 
+        st.markdown(
+            f"""
+            <div style="background-color:#111827;padding:15px;border-radius:15px;
+                        border:1px solid #374151; min-height:150px;">
+                <h3 style="color:white;margin-top:0;">✅ Ya recibieron su tanda</h3>
+                {contenido_r}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Tarjeta: Pendientes
     with col_p:
-        st.markdown("**⏳ Pendientes por recibir:**")
         if pendientes.empty:
-            st.write("— Ninguno pendiente.")
+            contenido_p = "<p style='color:#D1D5DB;'>— Ninguno pendiente.</p>"
         else:
+            items = []
             for _, row in pendientes.iterrows():
                 fecha_str = (
-                    row["fecha_pago_dt"].strftime("%Y-%m-%d")
+                    row["fecha_pago_dt"].strftime("%m/%d/%Y")
                     if not pd.isna(row["fecha_pago_dt"])
                     else row["fecha_pago"]
                 )
-                st.markdown(f"- {row['nombre_participante']} — {fecha_str}")
+                items.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
+            contenido_p = "<ul style='color:#D1D5DB;'>" + "".join(items) + "</ul>"
+
+        st.markdown(
+            f"""
+            <div style="background-color:#111827;padding:15px;border-radius:15px;
+                        border:1px solid #374151; min-height:150px;">
+                <h3 style="color:white;margin-top:0;">⏳ Pendientes por recibir</h3>
+                {contenido_p}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
