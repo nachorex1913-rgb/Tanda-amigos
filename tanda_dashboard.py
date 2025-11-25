@@ -108,7 +108,8 @@ def load_calendar():
 # LOGIN CON PIN (SOLO LECTURA)
 # ============================================================
 
-PASSWORD = "A"  # PIN de acceso para tus amigos (solo lectura)
+# 🔐 PIN para tus amigos
+PASSWORD = "1111"
 
 def check_password():
     if st.session_state.get("auth_dashboard", False):
@@ -145,16 +146,12 @@ else:
     available_years = []
 
 # ============================================================
-# SELECCIÓN DE AÑO
+# SELECCIÓN AUTOMÁTICA DE AÑO (SIN SELECTBOX)
 # ============================================================
 
 if available_years:
-    default_year = max(available_years)
-    selected_year = st.selectbox(
-        "Selecciona el año de la tanda",
-        options=available_years,
-        index=available_years.index(default_year),
-    )
+    # Siempre usamos el año más reciente
+    selected_year = max(available_years)
 else:
     selected_year = None
     st.warning("Todavía no hay calendario cargado en Google Sheets.")
@@ -283,7 +280,7 @@ if not df_year.empty:
         unsafe_allow_html=True,
     )
 else:
-    st.info("Todavía no hay calendario generado para el año seleccionado.")
+    st.info("Todavía no hay calendario generado para el año actual de la tanda.")
 
 st.markdown("---")
 
@@ -294,7 +291,7 @@ st.markdown("---")
 st.subheader("📅 Calendario de pagos")
 
 if df_year.empty:
-    st.info("No hay calendario para el año seleccionado.")
+    st.info("No hay calendario para el año actual de la tanda.")
 else:
     df_calendar_sorted = df_year.copy()
     df_calendar_sorted["fecha_pago_dt"] = pd.to_datetime(
@@ -334,7 +331,6 @@ st.subheader("👥 Participantes")
 if participants_df.empty:
     st.info("Aún no hay participantes registrados.")
 else:
-    # Construir lista: • Nombre — Nickname
     items = []
     for _, row in participants_df.iterrows():
         nickname = str(row.get("notas", "")).strip()
@@ -374,7 +370,7 @@ st.markdown("---")
 st.subheader("📜 Historial de la tanda")
 
 if df_year.empty:
-    st.info("No hay historial para el año seleccionado.")
+    st.info("No hay historial para el año actual de la tanda.")
 else:
     df_hist = df_year.copy()
     df_hist["fecha_pago_dt"] = pd.to_datetime(df_hist["fecha_pago_dt"], errors="coerce")
