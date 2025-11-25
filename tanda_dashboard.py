@@ -11,6 +11,12 @@ from gspread_dataframe import get_as_dataframe
 # ============================================================
 st.set_page_config(page_title="Tanda de cumpleaños", page_icon="💸", layout="wide")
 
+# Título centrado
+st.markdown(
+    "<h1 style='text-align:center;'>💸 Tanda de cumpleaños</h1>",
+    unsafe_allow_html=True,
+)
+
 # ============================================================
 # OCULTAR MENÚ Y FOOTER, ICONOS DE LA DERECHA
 # ============================================================
@@ -64,6 +70,7 @@ COLS_CALENDARIO = [
     "estatus",
     "fecha_pago_real",
     "notas",
+    "pagos_detalle",
 ]
 
 # ============================================================
@@ -98,24 +105,24 @@ def load_calendar():
     return df
 
 # ============================================================
-# LOGIN CON PIN
+# LOGIN CON PIN (SOLO LECTURA)
 # ============================================================
 
-PASSWORD = "12345"  # cámbiala si quieres
+PASSWORD = "A"  # PIN de acceso para tus amigos (solo lectura)
 
 def check_password():
-    if st.session_state.get("auth", False):
+    if st.session_state.get("auth_dashboard", False):
         return True
 
-    st.title("🔐 Acceso a la Tanda de cumpleaños")
+    st.subheader("🔐 Acceso a la Tanda")
 
-    with st.form("login_form"):
+    with st.form("login_form_dashboard"):
         pwd = st.text_input("PIN de acceso", type="password")
         submit = st.form_submit_button("Entrar")
 
     if submit:
         if pwd == PASSWORD:
-            st.session_state["auth"] = True
+            st.session_state["auth_dashboard"] = True
             st.rerun()
         else:
             st.error("PIN incorrecto")
@@ -138,15 +145,8 @@ else:
     available_years = []
 
 # ============================================================
-# TÍTULO Y SELECCIÓN DE AÑO
+# SELECCIÓN DE AÑO
 # ============================================================
-
-st.markdown(
-    "<h1 style='text-align:center;'>💸 Tanda de cumpleaños</h1>",
-    unsafe_allow_html=True,
-)
-
-st.write("")
 
 if available_years:
     default_year = max(available_years)
@@ -163,7 +163,6 @@ else:
 if selected_year is not None:
     df_year = calendar_df[calendar_df["anio"] == selected_year].copy()
     if not df_year.empty:
-        # Volvemos al comportamiento anterior: interpretar fechas sin formato fijo
         df_year["fecha_pago_dt"] = pd.to_datetime(
             df_year["fecha_pago"], errors="coerce"
         )
@@ -172,6 +171,8 @@ if selected_year is not None:
 else:
     df_year = pd.DataFrame(columns=COLS_CALENDARIO)
     df_year["fecha_pago_dt"] = pd.NaT
+
+st.markdown("---")
 
 # ============================================================
 # TARJETAS RESUMEN
@@ -215,7 +216,7 @@ with col2:
         unsafe_allow_html=True,
     )
 
-# 💰 Monto por cumpleañero
+# 💰 Monto por cumpleañero (n-1 aportantes ya calculado en hoja)
 if not df_year.empty:
     monto_por_cumpleanero = float(df_year["total_a_recibir"].iloc[0])
 else:
@@ -247,24 +248,20 @@ st.subheader("🎉 Próximo en recibir su tanda")
 if not df_year.empty:
     hoy = datetime.today().date()
 
-    # Aseguramos que fecha_pago_dt sea datetime64
     df_year["fecha_pago_dt"] = pd.to_datetime(df_year["fecha_pago_dt"], errors="coerce")
 
-    # Futuros: fecha >= hoy
     futuros = df_year[
-        df_year["fecha_pago_dt"].notna() &
-        (df_year["fecha_pago_dt"].dt.date >= hoy)
+        df_year["fecha_pago_dt"].notna()
+        & (df_year["fecha_pago_dt"].dt.date >= hoy)
     ].sort_values("fecha_pago_dt")
 
     if not futuros.empty:
         nr = futuros.iloc[0]
     else:
-        # Si no hay futuros, usar el último con fecha válida
         df_valid = df_year[df_year["fecha_pago_dt"].notna()].sort_values("fecha_pago_dt")
         if not df_valid.empty:
             nr = df_valid.iloc[-1]
         else:
-            # Si ni siquiera hay fechas válidas, tomar la primera fila tal cual
             nr = df_year.iloc[0]
 
     if not pd.isna(nr["fecha_pago_dt"]):
@@ -329,7 +326,7 @@ else:
 st.markdown("---")
 
 # ============================================================
-# LISTA DE PARTICIPANTES
+# LISTA DE PARTICIPANTES (MISMO FORMATO QUE ADMIN)
 # ============================================================
 
 st.subheader("👥 Participantes")
@@ -337,19 +334,36 @@ st.subheader("👥 Participantes")
 if participants_df.empty:
     st.info("Aún no hay participantes registrados.")
 else:
+    # Construir lista: • Nombre — Nickname
+    items = []
     for _, row in participants_df.iterrows():
-        st.markdown(
-            f"""
-            <div style="background-color:#111827;padding:12px 15px;border-radius:10px;
-                        margin-bottom:8px;border:1px solid #374151;">
-                <div style="font-size:18px;font-weight:bold;color:white;">
-                    👤 {row['nombre']}
-                </div>
-                <div style="color:#D1D5DB;"><b>🎂 Cumpleaños:</b> {row['fecha_cumple']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        nickname = str(row.get("notas", "")).strip()
+        if nickname == "":
+            nickname = "-"
+        items.append(f"<li>{row['nombre']} — {nickname}</li>")
+
+    lista_html = (
+        "<ul style='color:#D1D5DB;font-size:16px;margin:0;padding-left:20px;'>"
+        + "".join(items)
+        + "</ul>"
+    )
+
+    st.markdown(
+        f"""
+        <div style="
+            background-color:#111827;
+            padding:16px 18px;
+            border-radius:12px;
+            border:1px solid #374151;
+        ">
+            <h4 style="color:white;margin-top:0;margin-bottom:10px;">
+                👥 Participantes
+            </h4>
+            {lista_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 
