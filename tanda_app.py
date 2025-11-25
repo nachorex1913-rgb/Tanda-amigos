@@ -47,6 +47,7 @@ COLS_CALENDARIO = [
     "estatus",
     "fecha_pago_real",
     "notas",
+    "pagos_detalle",  # NUEVA COLUMNA: IDs de participantes que ya pagaron (ej. "1,3,4")
 ]
 
 
@@ -78,7 +79,7 @@ def save_new_participant(nombre, fecha_cumple_dt, telefono, email, notas):
     else:
         new_id = int(df["id"].max()) + 1
 
-    # Guardamos SIEMPRE en formato ISO: YYYY-MM-DD
+    # Guardar SIEMPRE en formato ISO: YYYY-MM-DD
     fecha_cumple_str = fecha_cumple_dt.strftime("%Y-%m-%d")
 
     new_row = [
@@ -166,7 +167,6 @@ with tab1:
     if participants_df.empty:
         st.info("Aún no hay participantes registrados.")
     else:
-        # Mostramos siempre fecha_cumple tal cual ISO (YYYY-MM-DD)
         st.dataframe(
             participants_df[["id", "nombre", "fecha_cumple", "telefono", "email"]],
             use_container_width=True,
@@ -203,7 +203,6 @@ with tab2:
             )
 
         if st.button("Generar / Reemplazar calendario para este año"):
-            # Preparamos df base
             cal_df_all = load_calendar()
             if cal_df_all.empty:
                 max_id = 0
@@ -219,16 +218,14 @@ with tab2:
                 try:
                     cumple_dt = datetime.strptime(str(row["fecha_cumple"]), "%Y-%m-%d")
                 except Exception:
-                    # Si falla, intentamos parsear libre
                     cumple_dt = pd.to_datetime(str(row["fecha_cumple"]), errors="coerce")
                     if pd.isna(cumple_dt):
-                        continue  # saltamos si no la podemos interpretar
+                        continue
 
-                # Ajustamos año al año de la tanda
+                # Ajustar año al año de la tanda
                 try:
                     fecha_pago_dt = cumple_dt.replace(year=int(anio_cal))
                 except ValueError:
-                    # Por si el cumple es 29-feb y el año no es bisiesto
                     if cumple_dt.month == 2 and cumple_dt.day == 29:
                         fecha_pago_dt = datetime(int(anio_cal), 2, 28)
                     else:
@@ -241,13 +238,13 @@ with tab2:
                         "anio": int(anio_cal),
                         "id_participante": int(row["id"]),
                         "nombre_participante": row["nombre"],
-                        # Guardamos SIEMPRE fecha de pago en formato ISO YYYY-MM-DD
                         "fecha_pago": fecha_pago_dt.strftime("%Y-%m-%d"),
                         "monto_por_persona": float(aporte),
                         "total_a_recibir": float(total_por_turno),
                         "estatus": "Pendiente",
                         "fecha_pago_real": "",
                         "notas": "",
+                        "pagos_detalle": "",  # sin pagos registrados al inicio
                     }
                 )
 
@@ -261,7 +258,6 @@ with tab2:
         st.markdown("---")
         st.subheader("Vista del calendario (solo lectura)")
 
-        # Mostrar calendario del año seleccionado
         cal_df = load_calendar()
         if cal_df.empty:
             st.info("Aún no hay calendario generado.")
@@ -280,11 +276,7 @@ with tab2:
                     cal_year["fecha_pago"], errors="coerce"
                 )
                 cal_year = cal_year.sort_values("fecha_pago_dt")
-
-                # Mostramos como tabla simple, fechas en YYYY-MM-DD
-                cal_year["fecha_pago"] = cal_year["fecha_pago_dt"].dt.strftime(
-                    "%Y-%m-%d"
-                )
+                cal_year["fecha_pago"] = cal_year["fecha_pago_dt"].dt.strftime("%Y-%m-%d")
 
                 st.dataframe(
                     cal_year[
@@ -328,7 +320,7 @@ with tab3:
             )
             df_edit = df_edit.sort_values("fecha_pago_dt")
 
-            # Para edición: solo dejamos cambiar estatus y fecha_pago_real
+            # ----- EDITOR DE ESTATUS GENERAL -----
             df_edit_display = df_edit.copy()
             df_edit_display["fecha_pago"] = df_edit["fecha_pago_dt"].dt.strftime(
                 "%Y-%m-%d"
@@ -363,7 +355,7 @@ with tab3:
                 },
             )
 
-            if st.button("Guardar cambios de pagos"):
+            if st.button("Guardar cambios de pagos (estatus/fechas)"):
                 # Volcamos cambios sobre df_edit original
                 for idx, row in edited.iterrows():
                     id_val = row["id"]
@@ -382,3 +374,78 @@ with tab3:
                 set_with_dataframe(sheet_calendario, df_out[COLS_CALENDARIO])
 
                 st.success("Cambios de estatus guardados correctamente.")
+
+            st.markdown("---")
+            st.subheader("Control de pagos por integrante")
+
+            participants_df = load_participants()
+            if participants_df.empty:
+                st.info("No hay participantes para controlar pagos.")
+            else:
+                # Seleccionar una tanda específica (participante que recibe + fecha)
+                opciones = []
+                ids_turno = []
+                for _, row in df_edit.iterrows():
+                    label = f"{row['nombre_participante']} — {row['fecha_pago_dt'].strftime('%Y-%m-%d') if not pd.isna(row['fecha_pago_dt']) else row['fecha_pago']}"
+                    opciones.append(label)
+                    ids_turno.append(int(row["id"]))
+
+                if opciones:
+                    selected_label = st.selectbox(
+                        "Selecciona la tanda a controlar",
+                        options=opciones,
+                        key="select_tanda_control",
+                    )
+                    idx_sel = opciones.index(selected_label)
+                    id_tanda_sel = ids_turno[idx_sel]
+
+                    tanda_row = df_edit[df_edit["id"] == id_tanda_sel].iloc[0]
+
+                    # Cargar pagos_detalle existentes (lista de IDs)
+                    pagos_raw = str(tanda_row.get("pagos_detalle", "")).strip()
+                    pagados_ids = set()
+                    if pagos_raw:
+                        for x in pagos_raw.split(","):
+                            x = x.strip()
+                            if x.isdigit():
+                                pagados_ids.add(int(x))
+
+                    st.write(
+                        f"Control de pagos para: **{tanda_row['nombre_participante']}** "
+                        f"({tanda_row['fecha_pago_dt'].strftime('%Y-%m-%d') if not pd.isna(tanda_row['fecha_pago_dt']) else tanda_row['fecha_pago']})"
+                    )
+                    st.caption("Marca quién ya hizo su pago para esta tanda.")
+
+                    checks = {}
+                    # Puedes decidir si excluyes al cumpleañero de la lista de pagadores
+                    for _, p in participants_df.iterrows():
+                        pid = int(p["id"])
+                        label = p["nombre"]
+                        checks[pid] = st.checkbox(
+                            label,
+                            value=(pid in pagados_ids),
+                            key=f"pago_tanda_{id_tanda_sel}_p_{pid}",
+                        )
+
+                    if st.button("Guardar control de pagos para esta tanda"):
+                        selected_ids = [pid for pid, val in checks.items() if val]
+                        pagos_detalle_str = ",".join(str(pid) for pid in selected_ids)
+
+                        # Actualizar df_edit con la nueva lista de pagos
+                        df_edit.loc[df_edit["id"] == id_tanda_sel, "pagos_detalle"] = pagos_detalle_str
+
+                        # Si TODOS los participantes han pagado, marcar tanda como Completada
+                        total_participantes = len(participants_df)
+                        if len(selected_ids) >= total_participantes:
+                            df_edit.loc[df_edit["id"] == id_tanda_sel, "estatus"] = "Completado"
+
+                        # Guardar de nuevo en Google Sheets
+                        df_all = load_calendar()
+                        df_other = df_all[df_all["anio"] != sel_year]
+                        df_out = pd.concat([df_other, df_edit], ignore_index=True)
+                        df_out = ensure_columns(df_out, COLS_CALENDARIO)
+
+                        sheet_calendario.clear()
+                        set_with_dataframe(sheet_calendario, df_out[COLS_CALENDARIO])
+
+                        st.success("Control de pagos actualizado. Tanda marcada como completada si todos pagaron.")
