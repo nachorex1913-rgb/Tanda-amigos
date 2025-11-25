@@ -250,9 +250,12 @@ if not df_year.empty:
             nr = df_year.iloc[0]
 
     if not pd.isna(nr["fecha_pago_dt"]):
-        fecha_str = nr["fecha_pago_dt"].strftime("%Y-%m-%d")
+        fecha_pago_dt = nr["fecha_pago_dt"]
+        fecha_str = fecha_pago_dt.strftime("%Y-%m-%d")
+        mes_pago = fecha_pago_dt.month
     else:
         fecha_str = str(nr["fecha_pago"])
+        mes_pago = hoy.month  # fallback
 
     # Tarjeta principal
     st.markdown(
@@ -271,6 +274,7 @@ if not df_year.empty:
 
     # =====================================================
     # BARRA ANIMADA 0% → 91% → 0% + PORCENTAJE + NICKNAME
+    # CON FRASE SEGÚN MES
     # =====================================================
 
     # Intentar obtener nickname desde participantes (campo notas)
@@ -283,11 +287,24 @@ if not df_year.empty:
     except Exception:
         nickname = ""
 
-    # Fallbacks
+    # Fallbacks de nickname
     if nickname == "":
         nickname = str(nr.get("notas", "")).strip()
     if nickname == "":
         nickname = nr["nombre_participante"]
+
+    # Frase según el mes del pago
+    def frase_por_mes(mes: int) -> str:
+        if mes == 1:
+            return "arrancamos el año con tu tanda... ya viene la lana 💸🎉"
+        elif mes == 6:
+            return "tu mitad de año viene con billete 😉"
+        elif mes == 12:
+            return "¡cierre de año y lana asegurada! 🎄💰"
+        else:
+            return "tu cumpleaños se acerca... ya viene la lana 💸"
+
+    frase_mes = frase_por_mes(mes_pago)
 
     st.markdown(
         f"""
@@ -358,7 +375,7 @@ if not df_year.empty:
 
         <div class="tanda-container">
             <div class="tanda-text">
-                <b>{nickname}</b>, tu cumpleaños se acerca... ya viene la lana 💸
+                <b>{nickname}</b>, {frase_mes}
             </div>
 
             <div class="progress-container">
