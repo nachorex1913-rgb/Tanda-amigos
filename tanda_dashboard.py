@@ -22,16 +22,9 @@ st.markdown(
 # ============================================================
 hide_streamlit_style = """
     <style>
-        /* Oculta menú principal de Streamlit */
         #MainMenu {visibility: hidden !important;}
-
-        /* Oculta pie de página "Made with Streamlit" */
         footer {visibility: hidden !important;}
-
-        /* Oculta iconos de la derecha (Share, estrella, lápiz, GitHub) */
-        div[data-testid="stToolbar"] {
-            display: none !important;
-        }
+        div[data-testid="stToolbar"] { display: none !important; }
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -108,8 +101,7 @@ def load_calendar():
 # LOGIN CON PIN (SOLO LECTURA)
 # ============================================================
 
-# 🔐 PIN para tus amigos
-PASSWORD = "1111"
+PASSWORD = "1111"  # PIN para tus amigos
 
 def check_password():
     if st.session_state.get("auth_dashboard", False):
@@ -145,12 +137,8 @@ if not calendar_df.empty:
 else:
     available_years = []
 
-# ============================================================
-# SELECCIÓN AUTOMÁTICA DE AÑO (SIN SELECTBOX)
-# ============================================================
-
+# Selección automática del año más reciente
 if available_years:
-    # Siempre usamos el año más reciente
     selected_year = max(available_years)
 else:
     selected_year = None
@@ -213,7 +201,7 @@ with col2:
         unsafe_allow_html=True,
     )
 
-# 💰 Monto por cumpleañero (n-1 aportantes ya calculado en hoja)
+# 💰 Monto por cumpleañero
 if not df_year.empty:
     monto_por_cumpleanero = float(df_year["total_a_recibir"].iloc[0])
 else:
@@ -266,6 +254,7 @@ if not df_year.empty:
     else:
         fecha_str = str(nr["fecha_pago"])
 
+    # Tarjeta principal
     st.markdown(
         f"""
         <div style="background-color:#111827;padding:20px;border-radius:15px;
@@ -280,34 +269,87 @@ if not df_year.empty:
         unsafe_allow_html=True,
     )
 
-    # Barra de avance animada (0% -> 91% -> 0% en loop)
+    # =====================================================
+    # BARRA ANIMADA 0% → 91% → 0% + PORCENTAJE + NICKNAME
+    # =====================================================
+
+    # Intentar obtener nickname desde participantes (campo notas)
+    nickname = ""
+    try:
+        pid = int(nr.get("id_participante", 0))
+        p_row = participants_df[participants_df["id"] == pid]
+        if not p_row.empty:
+            nickname = str(p_row.iloc[0].get("notas", "")).strip()
+    except Exception:
+        nickname = ""
+
+    # Fallback: usar notas del calendario o el nombre del participante
+    if nickname == "":
+        nickname = str(nr.get("notas", "")).strip()
+    if nickname == "":
+        nickname = nr["nombre_participante"]
+
     st.markdown(
-        """
+        f"""
         <style>
-        @keyframes progressAnim {
-            0% { width: 0%; }
-            50% { width: 91%; }
-            100% { width: 0%; }
-        }
-        .progress-container-tanda {
+        @keyframes progressAnim {{
+            0% {{ width: 0%; }}
+            50% {{ width: 91%; }}
+            100% {{ width: 0%; }}
+        }}
+
+        @keyframes counterAnim {{
+            0% {{ content: "0%"; }}
+            10% {{ content: "9%"; }}
+            20% {{ content: "18%"; }}
+            30% {{ content: "30%"; }}
+            40% {{ content: "40%"; }}
+            50% {{ content: "91%"; }}
+            60% {{ content: "40%"; }}
+            70% {{ content: "30%"; }}
+            80% {{ content: "18%"; }}
+            90% {{ content: "9%"; }}
+            100% {{ content: "0%"; }}
+        }}
+
+        .progress-container-tanda {{
             background-color:#374151;
             border-radius:9999px;
             overflow:hidden;
-            height:14px;
-        }
-        .progress-bar-tanda {
+            height:16px;
+            position:relative;
+            margin-top:8px;
+        }}
+
+        .progress-bar-tanda {{
             height:100%;
             background:linear-gradient(90deg,#22c55e,#16a34a);
-            border-radius:9999px;
-            animation: progressAnim 3s ease-in-out infinite;
-        }
+            animation: progressAnim 8s ease-in-out infinite;
+        }}
+
+        .progress-label-tanda {{
+            position:absolute;
+            top:-28px;
+            right:0;
+            color:#22c55e;
+            font-weight:bold;
+            font-size:14px;
+        }}
+
+        .progress-label-tanda::after {{
+            content:"0%";
+            animation: counterAnim 8s ease-in-out infinite;
+        }}
         </style>
-        <div style="margin-top:10px;margin-bottom:10px;">
-            <div style="color:#D1D5DB;font-size:13px;margin-bottom:4px;">
-                El momento de tu pago se acerca... ⏳
+
+        <div style="margin-top:14px;">
+            <div style="color:#D1D5DB;font-size:14px;margin-bottom:6px;">
+                <b>{nickname}</b>, el momento de tu pago se acerca... ⏳
             </div>
+
             <div class="progress-container-tanda">
                 <div class="progress-bar-tanda"></div>
+                <div class="progress-label-tanda"></div>
             </div>
         </div>
         """,
@@ -358,7 +400,7 @@ else:
 st.markdown("---")
 
 # ============================================================
-# LISTA DE PARTICIPANTES (MISMO FORMATO QUE ADMIN)
+# LISTA DE PARTICIPANTES
 # ============================================================
 
 st.subheader("👥 Participantes")
@@ -368,10 +410,10 @@ if participants_df.empty:
 else:
     items = []
     for _, row in participants_df.iterrows():
-        nickname = str(row.get("notas", "")).strip()
-        if nickname == "":
-            nickname = "-"
-        items.append(f"<li>{row['nombre']} — {nickname}</li>")
+        nickname_p = str(row.get("notas", "")).strip()
+        if nickname_p == "":
+            nickname_p = "-"
+        items.append(f"<li>{row['nombre']} — {nickname_p}</li>")
 
     lista_html = (
         "<ul style='color:#D1D5DB;font-size:16px;margin:0;padding-left:20px;'>"
@@ -419,19 +461,19 @@ else:
 
     col_r, col_p = st.columns(2)
 
-    # Tarjeta: Ya recibieron
+    # ✅ Ya recibieron
     with col_r:
         if recibieron.empty:
             contenido_r = "<p style='color:#D1D5DB;'>— Ninguno todavía.</p>"
         else:
-            items = []
+            items_r = []
             for _, row in recibieron.iterrows():
                 if not pd.isna(row["fecha_pago_dt"]):
                     fecha_str = row["fecha_pago_dt"].strftime("%Y-%m-%d")
                 else:
                     fecha_str = str(row["fecha_pago"])
-                items.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
-            contenido_r = "<ul style='color:#D1D5DB;'>" + "".join(items) + "</ul>"
+                items_r.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
+            contenido_r = "<ul style='color:#D1D5DB;'>" + "".join(items_r) + "</ul>"
 
         st.markdown(
             f"""
@@ -444,19 +486,19 @@ else:
             unsafe_allow_html=True,
         )
 
-    # Tarjeta: Pendientes
+    # ⏳ Pendientes
     with col_p:
         if pendientes.empty:
             contenido_p = "<p style='color:#D1D5DB;'>— Ninguno pendiente.</p>"
         else:
-            items = []
+            items_p = []
             for _, row in pendientes.iterrows():
                 if not pd.isna(row["fecha_pago_dt"]):
                     fecha_str = row["fecha_pago_dt"].strftime("%Y-%m-%d")
                 else:
                     fecha_str = str(row["fecha_pago"])
-                items.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
-            contenido_p = "<ul style='color:#D1D5DB;'>" + "".join(items) + "</ul>"
+                items_p.append(f"<li>{row['nombre_participante']} — {fecha_str}</li>")
+            contenido_p = "<ul style='color:#D1D5DB;'>" + "".join(items_p) + "</ul>"
 
         st.markdown(
             f"""
@@ -489,7 +531,7 @@ st.markdown(
         border:1px solid #374151;
     ">
         🌟 "Cada aporte es un recordatorio de que las mejores celebraciones
-        se construyen juntos. Gracias por ser parte de esta tanda." 🌟
+        se construyen juntos. ¡Gracias por ser parte de esta tanda!" 🌟
     </div>
     """,
     unsafe_allow_html=True,
