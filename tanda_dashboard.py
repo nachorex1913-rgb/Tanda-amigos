@@ -266,6 +266,23 @@ if not df_year.empty:
     else:
         fecha_str = str(nr["fecha_pago"])
 
+    # Cálculo del avance porcentual hacia la fecha de pago
+    if not pd.isna(nr["fecha_pago_dt"]):
+        fecha_pago_date = nr["fecha_pago_dt"].date()
+        # Inicio del periodo: 1 de enero del año de la tanda
+        start_period = datetime(selected_year, 1, 1).date()
+        end_period = fecha_pago_date
+
+        # Aseguramos que hoy esté dentro del rango
+        today_clamped = max(start_period, min(hoy, end_period))
+        total_days = (end_period - start_period).days or 1
+        elapsed_days = (today_clamped - start_period).days
+        elapsed_days = max(0, min(elapsed_days, total_days))
+
+        progress_pct = round((elapsed_days / total_days) * 100, 1)
+    else:
+        progress_pct = 0.0
+
     st.markdown(
         f"""
         <div style="background-color:#111827;padding:20px;border-radius:15px;
@@ -279,6 +296,28 @@ if not df_year.empty:
         """,
         unsafe_allow_html=True,
     )
+
+    # Barra de avance porcentual (verde)
+    st.markdown(
+        f"""
+        <div style="margin-top:10px;margin-bottom:10px;">
+            <div style="color:#D1D5DB;font-size:13px;margin-bottom:4px;">
+                Avance hacia la fecha de pago: <b>{progress_pct}%</b>
+            </div>
+            <div style="background-color:#374151;border-radius:9999px;
+                        overflow:hidden;height:14px;">
+                <div style="
+                    width:{progress_pct}%;
+                    height:100%;
+                    background:linear-gradient(90deg,#22c55e,#16a34a);
+                    transition:width 0.6s ease;
+                "></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 else:
     st.info("Todavía no hay calendario generado para el año actual de la tanda.")
 
@@ -433,3 +472,29 @@ else:
             """,
             unsafe_allow_html=True,
         )
+
+# ============================================================
+# FRASE MOTIVACIONAL FINAL
+# ============================================================
+
+st.markdown("---")
+
+st.markdown(
+    """
+    <div style="
+        text-align:center;
+        margin-top:20px;
+        margin-bottom:10px;
+        color:#D1D5DB;
+        font-size:16px;
+        background-color:#111827;
+        padding:15px;
+        border-radius:12px;
+        border:1px solid #374151;
+    ">
+        🌟 "Cada aporte es un paso más hacia una celebración inolvidable.
+        Gracias por ser parte de esta tanda." 🌟
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
