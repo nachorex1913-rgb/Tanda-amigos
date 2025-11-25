@@ -160,30 +160,27 @@ with tab1:
             save_new_participant(nombre, fecha_cumple, telefono, email, notas)
             st.success("Participante registrado correctamente.")
 
-    st.markdown("---")
+       st.markdown("---")
     st.subheader("Lista de participantes")
 
     participants_df = load_participants()
     if participants_df.empty:
         st.info("Aún no hay participantes registrados.")
     else:
-        # Tarjetas: solo nombre + nickname (notas)
+        # Construimos una lista tipo:
+        # • Oscar Barbosa — El Patron
+        # • Sonia Barbosa — La Chef
+        items = []
         for _, row in participants_df.iterrows():
-            nickname = row["notas"] if str(row["notas"]).strip() != "" else "-"
-            st.markdown(
-                f"""
-                <div style="background-color:#111827;padding:12px 15px;border-radius:10px;
-                            margin-bottom:8px;border:1px solid #374151;">
-                    <div style="font-size:18px;font-weight:bold;color:white;">
-                        👤 {row['nombre']}
-                    </div>
-                    <div style="color:#D1D5DB;">
-                        <b>Nickname:</b> {nickname}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            nickname = str(row["notas"]).strip()
+            if nickname == "":
+                nickname = "-"  # por si no tiene alias
+
+            items.append(f"<li>{row['nombre']} — {nickname}</li>")
+
+        lista_html = "<ul style='color:#D1D5DB;'>" + "".join(items) + "</ul>"
+        st.markdown(lista_html, unsafe_allow_html=True)
+
 
 
 # ============================================================
