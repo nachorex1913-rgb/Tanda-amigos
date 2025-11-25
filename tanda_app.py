@@ -9,8 +9,17 @@ from gspread_dataframe import get_as_dataframe, set_with_dataframe
 # ============================================================
 # CONFIG STREAMLIT
 # ============================================================
-st.set_page_config(page_title="Panel administrador – Tanda", page_icon="💸", layout="wide")
-st.title("💸 Panel administrador – Tanda de cumpleaños")
+st.set_page_config(
+    page_title="Admin Tanda de cumpleaños",
+    page_icon="💸",
+    layout="wide"
+)
+
+# Título centrado con icono
+st.markdown(
+    "<h1 style='text-align:center;'>💸 Admin Tanda de cumpleaños</h1>",
+    unsafe_allow_html=True,
+)
 
 # ============================================================
 # CONFIG GOOGLE SHEETS
@@ -28,7 +37,6 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
-# Aquí seguimos usando el nombre de la hoja como antes
 SHEET_NAME = "TandaDB"
 spreadsheet = client.open(SHEET_NAME)
 
@@ -99,7 +107,6 @@ def save_calendar_for_year(df_new_year, year):
         df_other = df_all[df_all["anio"] != year]
         df_out = pd.concat([df_other, df_new_year], ignore_index=True)
 
-    # ordenar
     df_out = ensure_columns(df_out, COLS_CALENDARIO)
     df_out["fecha_pago_dt"] = pd.to_datetime(df_out["fecha_pago"], errors="coerce")
     df_out = df_out.sort_values(["anio", "fecha_pago_dt", "id"])
@@ -124,7 +131,13 @@ with tab1:
     col1, col2 = st.columns(2)
     with col1:
         nombre = st.text_input("Nombre completo")
-        fecha_cumple = st.date_input("Fecha de cumpleaños", value=date(1990, 1, 1))
+        # 🔹 Ahora permite fechas desde 1925
+        fecha_cumple = st.date_input(
+            "Fecha de cumpleaños",
+            value=date(1990, 1, 1),
+            min_value=date(1925, 1, 1),
+            max_value=date.today(),
+        )
     with col2:
         telefono = st.text_input("Teléfono")
         email = st.text_input("Email")
@@ -154,7 +167,11 @@ with tab1:
                 nickname = "-"
             items.append(f"<li>{row['nombre']} — {nickname}</li>")
 
-        html_list = "<ul style='color:#D1D5DB;font-size:16px;margin:0;padding-left:20px;'>" + "".join(items) + "</ul>"
+        html_list = (
+            "<ul style='color:#D1D5DB;font-size:16px;margin:0;padding-left:20px;'>"
+            + "".join(items)
+            + "</ul>"
+        )
 
         st.markdown(
             f"""
