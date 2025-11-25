@@ -47,7 +47,7 @@ COLS_CALENDARIO = [
     "estatus",
     "fecha_pago_real",
     "notas",
-    "pagos_detalle",  # NUEVA COLUMNA: IDs de participantes que ya pagaron (ej. "1,3,4")
+    "pagos_detalle",  # IDs de participantes que ya pagaron (ej. "1,3,4")
 ]
 
 
@@ -151,7 +151,7 @@ with tab1:
     with col_b:
         telefono = st.text_input("Teléfono")
         email = st.text_input("Email")
-    notas = st.text_area("Notas", height=80)
+    notas = st.text_area("Notas (nickname)", height=80)
 
     if st.button("Guardar participante"):
         if not nombre:
@@ -167,10 +167,23 @@ with tab1:
     if participants_df.empty:
         st.info("Aún no hay participantes registrados.")
     else:
-        st.dataframe(
-            participants_df[["id", "nombre", "fecha_cumple", "telefono", "email"]],
-            use_container_width=True,
-        )
+        # Tarjetas: solo nombre + nickname (notas)
+        for _, row in participants_df.iterrows():
+            nickname = row["notas"] if str(row["notas"]).strip() != "" else "-"
+            st.markdown(
+                f"""
+                <div style="background-color:#111827;padding:12px 15px;border-radius:10px;
+                            margin-bottom:8px;border:1px solid #374151;">
+                    <div style="font-size:18px;font-weight:bold;color:white;">
+                        👤 {row['nombre']}
+                    </div>
+                    <div style="color:#D1D5DB;">
+                        <b>Nickname:</b> {nickname}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 # ============================================================
@@ -210,8 +223,12 @@ with tab2:
                 max_id = int(cal_df_all["id"].max())
 
             rows = []
+
+            # 🔹 Cálculo corregido: el cumpleañero NO aporta
             num_participantes = len(participants_df)
-            total_por_turno = aporte * num_participantes
+            num_aportantes = max(num_participantes - 1, 0)
+            total_por_turno = aporte * num_aportantes
+            # 🔹 Fin cambio
 
             for _, row in participants_df.iterrows():
                 # fecha_cumple guardada como 'YYYY-MM-DD'
@@ -386,7 +403,11 @@ with tab3:
                 opciones = []
                 ids_turno = []
                 for _, row in df_edit.iterrows():
-                    label = f"{row['nombre_participante']} — {row['fecha_pago_dt'].strftime('%Y-%m-%d') if not pd.isna(row['fecha_pago_dt']) else row['fecha_pago']}"
+                    if not pd.isna(row["fecha_pago_dt"]):
+                        fecha_label = row["fecha_pago_dt"].strftime("%Y-%m-%d")
+                    else:
+                        fecha_label = str(row["fecha_pago"])
+                    label = f"{row['nombre_participante']} — {fecha_label}"
                     opciones.append(label)
                     ids_turno.append(int(row["id"]))
 
@@ -410,9 +431,14 @@ with tab3:
                             if x.isdigit():
                                 pagados_ids.add(int(x))
 
+                    if not pd.isna(tanda_row["fecha_pago_dt"]):
+                        fecha_sel = tanda_row["fecha_pago_dt"].strftime("%Y-%m-%d")
+                    else:
+                        fecha_sel = str(tanda_row["fecha_pago"])
+
                     st.write(
                         f"Control de pagos para: **{tanda_row['nombre_participante']}** "
-                        f"({tanda_row['fecha_pago_dt'].strftime('%Y-%m-%d') if not pd.isna(tanda_row['fecha_pago_dt']) else tanda_row['fecha_pago']})"
+                        f"({fecha_sel})"
                     )
                     st.caption("Marca quién ya hizo su pago para esta tanda.")
 
@@ -434,7 +460,7 @@ with tab3:
                         # Actualizar df_edit con la nueva lista de pagos
                         df_edit.loc[df_edit["id"] == id_tanda_sel, "pagos_detalle"] = pagos_detalle_str
 
-                        # Si TODOS los participantes han pagado, marcar tanda como Completada
+                        # Si TODOS los participantes han pagado, marcar tanda como Completado
                         total_participantes = len(participants_df)
                         if len(selected_ids) >= total_participantes:
                             df_edit.loc[df_edit["id"] == id_tanda_sel, "estatus"] = "Completado"
@@ -448,4 +474,7 @@ with tab3:
                         sheet_calendario.clear()
                         set_with_dataframe(sheet_calendario, df_out[COLS_CALENDARIO])
 
-                        st.success("Control de pagos actualizado. Tanda marcada como completada si todos pagaron.")
+                        st.success(
+                            "Control de pagos actualizado. "
+                            "La tanda se marca como 'Completado' si todos pagaron."
+                        )
