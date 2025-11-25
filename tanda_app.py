@@ -13,7 +13,7 @@ st.set_page_config(page_title="Panel administrador – Tanda", page_icon="💸",
 st.title("💸 Panel administrador – Tanda de cumpleaños")
 
 # ============================================================
-# CONFIG: GOOGLE SHEETS (LECTURA / ESCRITURA)
+# CONFIG GOOGLE SHEETS
 # ============================================================
 
 SCOPES = [
@@ -28,6 +28,7 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
+# Aquí seguimos usando el nombre de la hoja como antes
 SHEET_NAME = "TandaDB"
 spreadsheet = client.open(SHEET_NAME)
 
@@ -49,9 +50,8 @@ COLS_CALENDARIO = [
     "pagos_detalle",
 ]
 
-
 # ============================================================
-# FUNCIONES BASE DE DATOS
+# BASE DE DATOS
 # ============================================================
 
 def ensure_columns(df, columns):
@@ -59,7 +59,6 @@ def ensure_columns(df, columns):
         if c not in df.columns:
             df[c] = ""
     return df[columns]
-
 
 def load_participants():
     df = get_as_dataframe(sheet_participantes, evaluate_formulas=True, header=0)
@@ -70,26 +69,15 @@ def load_participants():
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
     return df
 
-
 def save_new_participant(nombre, fecha_cumple_dt, telefono, email, notas):
     df = load_participants()
-    if df.empty:
-        new_id = 1
-    else:
-        new_id = int(df["id"].max()) + 1
+    new_id = 1 if df.empty else int(df["id"].max()) + 1
 
-    fecha_cumple_str = fecha_cumple_dt.strftime("%Y-%m-%d")
+    fecha_str = fecha_cumple_dt.strftime("%Y-%m-%d")
 
-    new_row = [
-        new_id,
-        nombre,
-        fecha_cumple_str,
-        telefono,
-        email,
-        notas,
-    ]
-    sheet_participantes.append_row(new_row)
-
+    sheet_participantes.append_row(
+        [new_id, nombre, fecha_str, telefono, email, notas]
+    )
 
 def load_calendar():
     df = get_as_dataframe(sheet_calendario, evaluate_formulas=True, header=0)
@@ -103,7 +91,6 @@ def load_calendar():
     ).astype(int)
     return df
 
-
 def save_calendar_for_year(df_new_year, year):
     df_all = load_calendar()
     if df_all.empty:
@@ -112,6 +99,7 @@ def save_calendar_for_year(df_new_year, year):
         df_other = df_all[df_all["anio"] != year]
         df_out = pd.concat([df_other, df_new_year], ignore_index=True)
 
+    # ordenar
     df_out = ensure_columns(df_out, COLS_CALENDARIO)
     df_out["fecha_pago_dt"] = pd.to_datetime(df_out["fecha_pago"], errors="coerce")
     df_out = df_out.sort_values(["anio", "fecha_pago_dt", "id"])
@@ -120,29 +108,28 @@ def save_calendar_for_year(df_new_year, year):
     sheet_calendario.clear()
     set_with_dataframe(sheet_calendario, df_out[COLS_CALENDARIO])
 
-
 # ============================================================
-# TABS PRINCIPALES
+# TABS
 # ============================================================
 
 tab1, tab2, tab3 = st.tabs(["👥 Participantes", "📅 Calendario", "💳 Pagos / Estatus"])
 
-
 # ============================================================
-# TAB 1: PARTICIPANTES
+# TAB 1 – PARTICIPANTES
 # ============================================================
 
 with tab1:
     st.subheader("Registrar nuevo participante")
 
-    col_a, col_b = st.columns(2)
-    with col_a:
+    col1, col2 = st.columns(2)
+    with col1:
         nombre = st.text_input("Nombre completo")
         fecha_cumple = st.date_input("Fecha de cumpleaños", value=date(1990, 1, 1))
-    with col_b:
+    with col2:
         telefono = st.text_input("Teléfono")
         email = st.text_input("Email")
-    notas = st.text_area("Notas (nickname)", height=80)
+
+    notas = st.text_area("Notas (nickname)", height=70)
 
     if st.button("Guardar participante"):
         if not nombre:
@@ -154,83 +141,90 @@ with tab1:
     st.markdown("---")
     st.subheader("Lista de participantes")
 
-    participants_df = load_participants()
-    if participants_df.empty:
-        st.info("Aún no hay participantes registrados.")
+    dfp = load_participants()
+    if dfp.empty:
+        st.info("Aún no hay participantes.")
     else:
-        for _, row in participants_df.iterrows():
-            st.markdown(
-                f"""
-                <div style="background-color:#111827;padding:12px 15px;border-radius:10px;
-                            margin-bottom:8px;border:1px solid #374151;">
-                    <div style="font-size:18px;font-weight:bold;color:white;">
-                        👤 {row['nombre']}
-                    </div>
-                    <div style="color:#D1D5DB;">
-                        <b>Fecha de cumpleaños:</b> {row['fecha_cumple']}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        # Una sola tarjeta conteniendo la lista:
+        # • Nombre — Nickname
+        items = []
+        for _, row in dfp.iterrows():
+            nickname = str(row["notas"]).strip()
+            if nickname == "":
+                nickname = "-"
+            items.append(f"<li>{row['nombre']} — {nickname}</li>")
 
+        html_list = "<ul style='color:#D1D5DB;font-size:16px;margin:0;padding-left:20px;'>" + "".join(items) + "</ul>"
+
+        st.markdown(
+            f"""
+            <div style="
+                background-color:#111827;
+                padding:16px 18px;
+                border-radius:12px;
+                border:1px solid #374151;
+            ">
+                <h4 style="color:white;margin-top:0;margin-bottom:10px;">
+                    👥 Participantes
+                </h4>
+                {html_list}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # ============================================================
-# TAB 2: CALENDARIO
+# TAB 2 – CALENDARIO
 # ============================================================
 
 with tab2:
-    st.subheader("Generar / actualizar calendario de pagos")
+    st.subheader("Generar calendario de pagos")
 
-    participants_df = load_participants()
-    if participants_df.empty:
-        st.warning("Primero registra participantes en la pestaña 'Participantes'.")
+    dfp = load_participants()
+    if dfp.empty:
+        st.warning("Primero registra participantes.")
     else:
         col1, col2 = st.columns(2)
         with col1:
-            current_year = datetime.today().year
-            anio_cal = st.number_input(
-                "Año de la tanda",
+            yr = st.number_input(
+                "Año",
                 min_value=2020,
                 max_value=2100,
-                value=current_year,
+                value=datetime.today().year,
                 step=1,
             )
         with col2:
             aporte = st.number_input(
-                "Aporte por persona (cuota)",
+                "Aporte por persona",
                 min_value=0.0,
-                step=10.0,
+                step=5.0,
                 value=50.0,
             )
 
-        if st.button("Generar / Reemplazar calendario para este año"):
-            cal_df_all = load_calendar()
-            if cal_df_all.empty:
-                max_id = 0
-            else:
-                max_id = int(cal_df_all["id"].max())
+        if st.button("Generar / Reemplazar calendario"):
+            df_cal = load_calendar()
+            max_id = 0 if df_cal.empty else int(df_cal["id"].max())
 
             rows = []
+            num_total = len(dfp)
+            # El cumpleañero NO aporta
+            num_aportan = max(num_total - 1, 0)
+            total_recibir = aporte * num_aportan
 
-            # Cálculo corregido: el cumpleañero NO aporta
-            num_participantes = len(participants_df)
-            num_aportantes = max(num_participantes - 1, 0)
-            total_por_turno = aporte * num_aportantes
-
-            for _, row in participants_df.iterrows():
+            for _, row in dfp.iterrows():
                 try:
-                    cumple_dt = datetime.strptime(str(row["fecha_cumple"]), "%Y-%m-%d")
+                    fcx = datetime.strptime(str(row["fecha_cumple"]), "%Y-%m-%d")
                 except Exception:
-                    cumple_dt = pd.to_datetime(str(row["fecha_cumple"]), errors="coerce")
-                    if pd.isna(cumple_dt):
-                        continue
+                    fcx = pd.to_datetime(str(row["fecha_cumple"]), errors="coerce")
+
+                if pd.isna(fcx):
+                    continue
 
                 try:
-                    fecha_pago_dt = cumple_dt.replace(year=int(anio_cal))
+                    fpay = fcx.replace(year=int(yr))
                 except ValueError:
-                    if cumple_dt.month == 2 and cumple_dt.day == 29:
-                        fecha_pago_dt = datetime(int(anio_cal), 2, 28)
+                    if fcx.month == 2 and fcx.day == 29:
+                        fpay = datetime(int(yr), 2, 28)
                     else:
                         continue
 
@@ -238,12 +232,12 @@ with tab2:
                 rows.append(
                     {
                         "id": max_id,
-                        "anio": int(anio_cal),
+                        "anio": int(yr),
                         "id_participante": int(row["id"]),
                         "nombre_participante": row["nombre"],
-                        "fecha_pago": fecha_pago_dt.strftime("%Y-%m-%d"),
+                        "fecha_pago": fpay.strftime("%Y-%m-%d"),
                         "monto_por_persona": float(aporte),
-                        "total_a_recibir": float(total_por_turno),
+                        "total_a_recibir": float(total_recibir),
                         "estatus": "Pendiente",
                         "fecha_pago_real": "",
                         "notas": "",
@@ -254,43 +248,190 @@ with tab2:
             if not rows:
                 st.error("No se pudo generar el calendario. Revisa las fechas de cumpleaños.")
             else:
-                df_new_year = pd.DataFrame(rows, columns=COLS_CALENDARIO)
-                save_calendar_for_year(df_new_year, int(anio_cal))
-                st.success(f"Calendario para el año {anio_cal} generado/actualizado correctamente.")
+                df_new = pd.DataFrame(rows, columns=COLS_CALENDARIO)
+                save_calendar_for_year(df_new, int(yr))
+                st.success("Calendario generado correctamente.")
 
         st.markdown("---")
-        st.subheader("Vista del calendario (solo lectura)")
+        st.subheader("Vista del calendario")
 
-        cal_df = load_calendar()
-        if cal_df.empty:
-            st.info("Aún no hay calendario generado.")
+        dfc = load_calendar()
+        if dfc.empty:
+            st.info("Aún no hay calendario.")
         else:
-            years_available = sorted(cal_df["anio"].unique())
-            sel_year = st.selectbox(
-                "Ver calendario del año",
-                options=years_available,
-                index=years_available.index(max(years_available)),
+            years = sorted(dfc["anio"].unique())
+            sy = st.selectbox(
+                "Año",
+                years,
+                index=years.index(max(years)),
             )
-            cal_year = cal_df[cal_df["anio"] == sel_year].copy()
-            if cal_year.empty:
-                st.info("No hay registros para ese año.")
+
+            dfy = dfc[dfc["anio"] == sy].copy()
+            dfy["fecha_pago_dt"] = pd.to_datetime(dfy["fecha_pago"], errors="coerce")
+            dfy = dfy.sort_values("fecha_pago_dt")
+            dfy["fecha_pago"] = dfy["fecha_pago_dt"].dt.strftime("%Y-%m-%d")
+
+            st.dataframe(
+                dfy[
+                    [
+                        "nombre_participante",
+                        "fecha_pago",
+                        "monto_por_persona",
+                        "total_a_recibir",
+                        "estatus",
+                    ]
+                ],
+                use_container_width=True,
+            )
+
+# ============================================================
+# TAB 3 – PAGOS / ESTATUS
+# ============================================================
+
+with tab3:
+    st.subheader("Actualizar pagos y estatus")
+
+    dfc = load_calendar()
+    if dfc.empty:
+        st.info("Aún no hay calendario.")
+    else:
+        years = sorted(dfc["anio"].unique())
+        sy = st.selectbox(
+            "Año a editar",
+            years,
+            index=years.index(max(years)),
+        )
+
+        dfy = dfc[dfc["anio"] == sy].copy()
+        if dfy.empty:
+            st.info("No hay registros para ese año.")
+        else:
+            dfy["fecha_pago_dt"] = pd.to_datetime(dfy["fecha_pago"], errors="coerce")
+            dfy = dfy.sort_values("fecha_pago_dt")
+
+            df_edit = dfy.copy()
+            df_edit["fecha_pago"] = df_edit["fecha_pago_dt"].dt.strftime("%Y-%m-%d")
+
+            st.write("Edita estatus y fecha real de pago (opcional):")
+            edited = st.data_editor(
+                df_edit[
+                    [
+                        "id",
+                        "nombre_participante",
+                        "fecha_pago",
+                        "monto_por_persona",
+                        "total_a_recibir",
+                        "estatus",
+                        "fecha_pago_real",
+                        "notas",
+                    ]
+                ],
+                num_rows="fixed",
+                use_container_width=True,
+                key="editor_pagos_generales",
+                column_config={
+                    "id": st.column_config.NumberColumn(disabled=True),
+                    "nombre_participante": st.column_config.TextColumn(disabled=True),
+                    "fecha_pago": st.column_config.TextColumn(disabled=True),
+                    "monto_por_persona": st.column_config.NumberColumn(disabled=True),
+                    "total_a_recibir": st.column_config.NumberColumn(disabled=True),
+                },
+            )
+
+            if st.button("Guardar cambios generales"):
+                for _, row in edited.iterrows():
+                    mask = dfy["id"] == row["id"]
+                    dfy.loc[mask, "estatus"] = row["estatus"]
+                    dfy.loc[mask, "fecha_pago_real"] = row["fecha_pago_real"]
+                    dfy.loc[mask, "notas"] = row["notas"]
+
+                df_all = load_calendar()
+                df_out = pd.concat(
+                    [df_all[df_all["anio"] != sy], dfy],
+                    ignore_index=True,
+                )
+                df_out = ensure_columns(df_out, COLS_CALENDARIO)
+
+                sheet_calendario.clear()
+                set_with_dataframe(sheet_calendario, df_out[COLS_CALENDARIO])
+
+                st.success("Cambios guardados correctamente.")
+
+            st.markdown("---")
+            st.subheader("Control de pagos por integrante")
+
+            dfp = load_participants()
+            if dfp.empty:
+                st.info("No hay participantes.")
             else:
-                cal_year["fecha_pago_dt"] = pd.to_datetime(
-                    cal_year["fecha_pago"], errors="coerce"
-                )
-                cal_year = cal_year.sort_values("fecha_pago_dt")
-                cal_year["fecha_pago"] = cal_year["fecha_pago_dt"].dt.strftime("%Y-%m-%d")
+                opciones = []
+                ids_turno = []
 
-                st.dataframe(
-                    cal_year[
-                        [
-                            "nombre_participante",
-                            "fecha_pago",
-                            "monto_por_persona",
-                            "total_a_recibir",
-                            "estatus",
-                        ]
-                    ],
-                    use_container_width=True,
-                )
+                for _, r in dfy.iterrows():
+                    fecha_lbl = (
+                        r["fecha_pago_dt"].strftime("%Y-%m-%d")
+                        if not pd.isna(r["fecha_pago_dt"])
+                        else str(r["fecha_pago"])
+                    )
+                    opciones.append(f"{r['nombre_participante']} — {fecha_lbl}")
+                    ids_turno.append(int(r["id"]))
 
+                if opciones:
+                    sel = st.selectbox(
+                        "Selecciona la tanda",
+                        opciones,
+                        key="select_tanda_control",
+                    )
+                    idx_sel = opciones.index(sel)
+                    id_turno = ids_turno[idx_sel]
+
+                    row_t = dfy[dfy["id"] == id_turno].iloc[0]
+
+                    pagos_raw = str(row_t.get("pagos_detalle", "")).strip()
+                    pagados = set()
+                    if pagos_raw:
+                        for x in pagos_raw.split(","):
+                            x = x.strip()
+                            if x.isdigit():
+                                pagados.add(int(x))
+
+                    fecha_lbl = (
+                        row_t["fecha_pago_dt"].strftime("%Y-%m-%d")
+                        if not pd.isna(row_t["fecha_pago_dt"])
+                        else str(row_t["fecha_pago"])
+                    )
+
+                    st.write(
+                        f"Pagos para **{row_t['nombre_participante']}** — {fecha_lbl}"
+                    )
+                    st.caption("Marca quién ya hizo su aporte para esta tanda.")
+
+                    checks = {}
+                    for _, p in dfp.iterrows():
+                        pid = int(p["id"])
+                        checks[pid] = st.checkbox(
+                            p["nombre"],
+                            value=(pid in pagados),
+                            key=f"chk_{id_turno}_{pid}",
+                        )
+
+                    if st.button("Guardar control de pagos"):
+                        new_pagos = [pid for pid, v in checks.items() if v]
+                        pagos_str = ",".join(str(x) for x in new_pagos)
+
+                        dfy.loc[dfy["id"] == id_turno, "pagos_detalle"] = pagos_str
+
+                        if len(new_pagos) >= len(dfp):
+                            dfy.loc[dfy["id"] == id_turno, "estatus"] = "Completado"
+
+                        df_all = load_calendar()
+                        df_out = pd.concat(
+                            [df_all[df_all["anio"] != sy], dfy],
+                            ignore_index=True,
+                        )
+                        df_out = ensure_columns(df_out, COLS_CALENDARIO)
+
+                        sheet_calendario.clear()
+                        set_with_dataframe(sheet_calendario, df_out[COLS_CALENDARIO])
+
+                        st.success("Control de pagos actualizado.")
