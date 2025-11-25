@@ -283,7 +283,7 @@ if not df_year.empty:
     except Exception:
         nickname = ""
 
-    # Fallback: usar notas del calendario o el nombre del participante
+    # Fallbacks
     if nickname == "":
         nickname = str(nr.get("notas", "")).strip()
     if nickname == "":
@@ -292,6 +292,7 @@ if not df_year.empty:
     st.markdown(
         f"""
         <style>
+
         @keyframes progressAnim {{
             0% {{ width: 0%; }}
             50% {{ width: 91%; }}
@@ -312,44 +313,57 @@ if not df_year.empty:
             100% {{ content: "0%"; }}
         }}
 
-        .progress-container-tanda {{
-            background-color:#374151;
-            border-radius:9999px;
-            overflow:hidden;
-            height:16px;
-            position:relative;
-            margin-top:8px;
+        .tanda-container {{
+            margin-top: 14px;
+            margin-bottom: 4px;
         }}
 
-        .progress-bar-tanda {{
-            height:100%;
-            background:linear-gradient(90deg,#22c55e,#16a34a);
+        .tanda-text {{
+            color: #D1D5DB;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }}
+
+        .progress-container {{
+            background-color: #374151;
+            border-radius: 9999px;
+            overflow: hidden;
+            height: 16px;
+            position: relative;
+        }}
+
+        .progress-bar {{
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #16a34a);
             animation: progressAnim 8s ease-in-out infinite;
+            box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e, 0 0 30px #16a34a;
         }}
 
-        .progress-label-tanda {{
-            position:absolute;
-            top:-28px;
-            right:0;
-            color:#22c55e;
-            font-weight:bold;
-            font-size:14px;
+        .progress-label {{
+            position: absolute;
+            top: -26px;
+            right: 0px;
+            font-weight: bold;
+            font-size: 14px;
+            color: #22c55e;
+            text-shadow: 0 0 6px #22c55e;
         }}
 
-        .progress-label-tanda::after {{
-            content:"0%";
+        .progress-label::after {{
+            content: "0%";
             animation: counterAnim 8s ease-in-out infinite;
         }}
+
         </style>
 
-        <div style="margin-top:14px;">
-            <div style="color:#D1D5DB;font-size:14px;margin-bottom:6px;">
-                <b>{nickname}</b>, el momento de tu pago se acerca... ⏳
+        <div class="tanda-container">
+            <div class="tanda-text">
+                <b>{nickname}</b>, tu cumpleaños se acerca... ya viene la lana 💸
             </div>
 
-            <div class="progress-container-tanda">
-                <div class="progress-bar-tanda"></div>
-                <div class="progress-label-tanda"></div>
+            <div class="progress-container">
+                <div class="progress-bar"></div>
+                <div class="progress-label"></div>
             </div>
         </div>
         """,
